@@ -1,0 +1,9 @@
+# Fins de ligne normalisées pour une clé bi-OS :
+# - scripts shell : toujours LF (bash refuse les CRLF)
+# - scripts batch : toujours CRLF au checkout (exigence de cmd.exe),
+#   stockés en LF dans le dépôt (évite les faux "trailing whitespace"
+#   de git apply/diff)
+*.sh   text eol=lf
+*.py   text eol=lf
+*.bat  text eol=crlf
+*.csv  text
