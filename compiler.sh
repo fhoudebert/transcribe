@@ -16,15 +16,9 @@ cd truchement-src
     --windowed \
     transcribe.py
 echo "📦 compilation de truchement..."
-cd truchement-src
-../build/python/venv/bin/pyinstaller \
-         --onefile \
-         --name truchement \
-         --exclude-module matplotlib \
-         --exclude-module numpy \
-         --exclude-module torch \
-         --icon=assets/dico.png \
-        --add-data "assets:assets" \
-         --windowed  \
-        main.py
+# Délégué à compiler_truchement.sh, qui embarque la stdlib complète dans le
+# binaire (argostranslate étant chargé depuis le venv à l'exécution,
+# l'analyse statique de PyInstaller ne suffit pas — cf. commentaires du
+# script : ModuleNotFoundError pickletools sinon).
+bash "$(dirname "$0")/compiler_truchement.sh"
 echo "✅ compilation terminée"
