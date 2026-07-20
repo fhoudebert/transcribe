@@ -65,7 +65,23 @@ else:
 
 # ─── Localisation de l'interpréteur du venv figé ───────────────────────────────
 
-_VENV_DIR = os.path.join(BASE_DIR, "build", "python", "venv")
+def _venv_dirname(platform_os: str = os.name) -> str:
+    """
+    Nom du dossier venv selon l'OS : une clé bi-OS porte DEUX venvs frères
+    (build/python/venv pour Linux, build/python/venv-windows pour Windows),
+    car les extensions compilées (.so / .pyd) ne sont pas interchangeables.
+    Les données lourdes — paquets Argos, modèles, dictionnaires — sont en
+    revanche partagées entre les deux systèmes.
+    """
+    return "venv-windows" if platform_os == "nt" else "venv"
+
+
+_VENV_DIR = os.path.join(BASE_DIR, "build", "python", _venv_dirname())
+
+# Constantes publiques : chemin du venv actif pour cet OS, et sa forme
+# relative pour les messages destinés à l'utilisateur (UI, diagnostics).
+VENV_DIR: str = _VENV_DIR
+VENV_DIR_RELATIVE: str = os.path.join("build", "python", _venv_dirname())
 
 
 def _candidate_pythons(venv_dir: str) -> list[str]:
@@ -240,7 +256,7 @@ def diagnose_venv_python() -> dict:
             "genuine": False,
             "note": (
                 f"Aucun interpréteur Python trouvé sous {_VENV_DIR}. "
-                f"Vérifiez que le dossier build/python/venv a bien été "
+                f"Vérifiez que le dossier {VENV_DIR_RELATIVE} a bien été "
                 f"copié intégralement (y compris ses sous-dossiers lib/ "
                 f"ou Lib/), au même niveau que l'exécutable."
             ),
@@ -252,7 +268,7 @@ def diagnose_venv_python() -> dict:
             f"celui du venv préparé (pyvenv.cfg absent dans {_VENV_DIR}). "
             f"Il s'agit peut-être du Python système, récupéré par erreur "
             f"si un outil de copie a remplacé un lien symbolique par le "
-            f"fichier qu'il ciblait. Recopiez le dossier build/python/venv "
+            f"fichier qu'il ciblait. Recopiez le dossier {VENV_DIR_RELATIVE} "
             f"avec un outil qui préserve les liens symboliques "
             f"(ex. 'cp -a' ou 'rsync -a' sous Linux/macOS)."
         )

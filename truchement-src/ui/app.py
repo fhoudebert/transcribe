@@ -533,8 +533,8 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
     @staticmethod
     def _venv_missing_msg() -> str:
         return (
-            "Python venv not found at build/python/venv\n\n"
-            "Le venv Python figé (build/python/venv) est introuvable à côté "
+            f"Python venv not found at {bootstrap.VENV_DIR_RELATIVE}\n\n"
+            f"Le venv Python figé ({bootstrap.VENV_DIR_RELATIVE}) est introuvable à côté "
             "de l'exécutable. Vérifiez que le dossier 'build' a bien été "
             "copié sur la clé USB, au même niveau que l'application."
         )
@@ -571,7 +571,7 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
         sys.path / l'absence de module homonyme, pas réinstaller).
         """
         return (
-            "Le venv (build/python/venv) fonctionne correctement — "
+            f"Le venv ({bootstrap.VENV_DIR_RELATIVE}) fonctionne correctement — "
             "argostranslate y est bien installé — mais son chargement a "
             "échoué dans le processus de l'application elle-même.\n\n"
             f"Détail technique : {detail}\n\n"
