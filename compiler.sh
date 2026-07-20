@@ -3,18 +3,9 @@
 set -e  # stop si erreur
 
 echo "📦 compilation de transcribe..."
-cd build/python/venv/bin/
-source activate 
-cd ../../../../
-cd truchement-src
-../build/python/venv/bin/pyinstaller \
-    --onefile \
-    --name transcribe \
-    --icon=assets/icone.png \
-    --add-data "traduire-srt.py:." \
-    --add-data "assets:assets" \
-    --windowed \
-    transcribe.py
+# Délégué à compiler_transcribe.sh (compilation + déploiement à la racine :
+# binaire, assets fusionnés, i18n).
+bash "$(dirname "$0")/compiler_transcribe.sh"
 echo "📦 compilation de truchement..."
 # Délégué à compiler_truchement.sh, qui embarque la stdlib complète dans le
 # binaire (argostranslate étant chargé depuis le venv à l'exécution,

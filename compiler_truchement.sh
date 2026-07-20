@@ -63,7 +63,29 @@ cd "$SCRIPT_DIR/truchement-src"
         --windowed \
         main.py
 
-echo "📦 Installation du binaire à la racine de l'application..."
+# ── Déploiement à la racine ───────────────────────────────────────────────────
+# deploy_dir <src> <dest> : fusionne src/ dans dest/ (créé si besoin) SANS
+# supprimer ce qui vient d'autres sources (assets/ est partagé entre
+# transcribe et truchement). Cas particulier : i18n/.locale mémorise la
+# langue choisie par l'utilisateur → copiée uniquement si absente à la
+# racine, pour ne pas écraser sa préférence à chaque recompilation.
+deploy_dir() {
+    local src="$1" dest="$2" f base
+    [ -d "$src" ] || return 0
+    mkdir -p "$dest"
+    for f in "$src"/* "$src"/.[!.]*; do
+        [ -e "$f" ] || continue
+        base="$(basename "$f")"
+        if [ "$base" = ".locale" ] && [ -e "$dest/$base" ]; then
+            continue
+        fi
+        cp -r "$f" "$dest/"
+    done
+}
+
+echo "📦 Déploiement à la racine de l'application..."
 install -m 0755 "$SCRIPT_DIR/truchement-src/dist/truchement" "$SCRIPT_DIR/truchement"
+deploy_dir "$SCRIPT_DIR/truchement-src/assets" "$SCRIPT_DIR/assets"
+deploy_dir "$SCRIPT_DIR/truchement-src/i18n"   "$SCRIPT_DIR/i18n"
 
 echo "🎉 Compilation terminée avec succès : $SCRIPT_DIR/truchement"
