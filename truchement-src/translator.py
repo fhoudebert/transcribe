@@ -115,14 +115,42 @@ def _get_cached_translation(src: str, tgt: str):
 
 def invalidate_language_cache() -> None:
     """
-    Vide les caches de langues/traductions. À appeler après une éventuelle
-    installation ou suppression de paquet argostranslate en cours de
-    session (ex. futur écran de gestion des paquets dans l'UI), pour que
-    le prochain appel reflète l'état réel des packages installés.
+    Vide les caches de langues/traductions ET resynchronise les listes de
+    langues de l'UI (config.MAPPING) avec l'état réel du dossier de paquets.
+    À appeler après toute installation ou suppression de paquet
+    argostranslate en cours de session.
     """
     global _LANGUAGES_CACHE
     _LANGUAGES_CACHE = None
     _TRANSLATION_CACHE.clear()
+    import config
+    config.refresh_mapping()
+
+
+def warm_up(src: str | None = None, tgt: str | None = None) -> bool:
+    """
+    Préchauffage : paie le coût de l'import d'argostranslate (plusieurs
+    secondes : ctranslate2, sentencepiece, spacy/stanza…) et du scan des
+    langues installées, et — si (src, tgt) est fourni et disponible —
+    charge le modèle de cette paire en mémoire.
+
+    Conçu pour être appelé depuis un thread démon PENDANT que l'UI est
+    déjà affichée (cf. ui/app.py) : la première traduction de
+    l'utilisateur devient alors quasi instantanée dans le cas nominal.
+
+    N'échoue JAMAIS bruyamment : toute erreur est avalée et fera surface
+    normalement (avec son diagnostic complet) lors de la première vraie
+    traduction. Retourne True si le préchauffage a entièrement abouti.
+    """
+    try:
+        languages = _get_installed_languages()
+        if not languages:
+            return False
+        if src and tgt:
+            _get_cached_translation(src, tgt)
+        return True
+    except Exception:
+        return False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

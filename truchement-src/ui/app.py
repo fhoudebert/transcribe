@@ -27,10 +27,12 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 import bootstrap
-from config import C, F, LANG_NAMES, MAPPING, lang_code, detect_locale_lang
+from config import (
+    C, F, LANG_NAMES, MAPPING, PIVOT_PAIRS, lang_code, detect_locale_lang,
+)
 from dictionary import available_dics, close_all_conns
 from i18n import I18N, detect_ui_lang
-from translator import translate_text, TIMEOUT_TEXT
+from translator import translate_text, warm_up, TIMEOUT_TEXT
 from ui.styles import build_style
 from ui.panels import build_panel
 from ui.file_tab import FileTabMixin
@@ -114,6 +116,42 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
         self._refresh_i18n()
         self._apply_locale_defaults()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        # Préchauffage du moteur de traduction EN ARRIÈRE-PLAN, une fois la
+        # fenêtre affichée : l'import d'argostranslate et le chargement du
+        # modèle de la paire présélectionnée (locale) prennent plusieurs
+        # secondes — les payer maintenant, pendant que l'utilisateur lit
+        # l'écran, rend la première traduction quasi instantanée. 300 ms de
+        # délai pour laisser Tk peindre la fenêtre avant de charger le CPU.
+        self._warmed_up = False
+        self.after(300, self._start_warm_up)
+
+    # ── Préchauffage argostranslate ───────────────────────────────────────────
+
+    def _start_warm_up(self) -> None:
+        """Lance warm_up() dans un thread démon, sans jamais bloquer l'UI."""
+        if self._warmed_up:
+            return
+        src = lang_code(self.cb_src.get()) if self.cb_src.get() else None
+        tgt = lang_code(self.cb_tgt.get()) if self.cb_tgt.get() else None
+
+        def work() -> None:
+            ok = warm_up(src, tgt)
+
+            def done() -> None:
+                self._warmed_up = ok
+                # Ne pas écraser un statut d'opération en cours.
+                if ok and not self._progress_starts:
+                    self.lbl_status.configure(
+                        text=self._t.get("engine_ready", "")
+                    )
+
+            try:
+                self.after(0, done)
+            except tk.TclError:
+                pass   # fenêtre fermée pendant le préchauffage
+
+        threading.Thread(target=work, daemon=True, name="warm-up").start()
 
     # ── Fermeture ─────────────────────────────────────────────────────────────
 
@@ -343,10 +381,32 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
     # ── Combobox langues ──────────────────────────────────────────────────────
 
     def _on_src_change(self, _=None) -> None:
-        code    = lang_code(self.cb_src.get())
-        targets = sorted([LANG_NAMES.get(c, c) for c in MAPPING.get(code, [])])
+        code = lang_code(self.cb_src.get())
+        via  = self._t.get("via_pivot", "· via English")
+
+        def display(c: str) -> str:
+            name = LANG_NAMES.get(c, c)
+            # Paire composée via l'anglais (fr→es = fr→en→es) : signalée à
+            # l'utilisateur, la qualité étant moindre qu'une paire directe.
+            # lang_code() tolère ce suffixe (test par préfixe).
+            if (code, c) in PIVOT_PAIRS:
+                return f"{name}  {via}"
+            return name
+
+        targets = sorted(display(c) for c in MAPPING.get(code, []))
         self.cb_tgt.configure(values=targets)
         self.cb_tgt.set(targets[0] if targets else "")
+
+    def _select_target(self, code: str) -> None:
+        """
+        Sélectionne dans cb_tgt l'entrée correspondant au code *code*, en
+        retrouvant son libellé exact dans les valeurs courantes (qui peuvent
+        porter le suffixe pivot localisé).
+        """
+        for value in self.cb_tgt["values"]:
+            if lang_code(value) == code:
+                self.cb_tgt.set(value)
+                return
 
     def _swap_langs(self) -> None:
         """Inverse source ↔ cible ET permute les textes dans les deux panneaux."""
@@ -375,7 +435,7 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
 
         self.cb_src.set(LANG_NAMES.get(ns, ns))
         self._on_src_change()
-        self.cb_tgt.set(LANG_NAMES.get(nt, nt))
+        self._select_target(nt)
 
         for i in range(2):
             old_src, old_tgt = saved[i]
@@ -578,6 +638,14 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
         self.lbl_tgt.configure(text=t["target_lang"])
         self.btn_swap.configure(text=t["swap_btn"])
         self.lbl_ui.configure(text=t["ui_lang"] + " :")
+
+        # Le suffixe "via English" des paires pivot est localisé : régénérer
+        # la liste des cibles en conservant la sélection courante.
+        if self.cb_src.get():
+            current_tgt = lang_code(self.cb_tgt.get()) if self.cb_tgt.get() else ""
+            self._on_src_change()
+            if current_tgt:
+                self._select_target(current_tgt)
         self.nb.tab(0, text=t["tab1"])
         self.nb.tab(1, text=t["tab2"])
         self.nb.tab(2, text=t.get("tab3", "File"))

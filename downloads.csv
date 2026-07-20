@@ -1,4 +1,10 @@
 # Download-assistant – fichier de téléchargements
+# (lu par download-assistant, ou par le repli shell download_from_csv.sh)
+#
+# NOTE : les paquets de traduction Argos Translate ne passent PAS par ce
+# fichier — ils sont installés directement sur la clé (build/argos-data/
+# packages) par setup_venv_lang.sh, via argospm avec ARGOS_PACKAGES_DIR.
+#
 # Format : destination,url[,format]
 #
 # Colonne 3 – format (optionnel) :

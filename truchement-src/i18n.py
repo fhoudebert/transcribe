@@ -19,6 +19,8 @@ import locale
 
 I18N: dict[str, dict[str, str]] = {
     "en": {
+        "via_pivot": "· via English",
+        "engine_ready": "Translation engine ready.",
         "title": "Dictionary",
         "subtitle": "Translate texts and define words",
         "source_lang": "Source Language",
@@ -104,6 +106,8 @@ I18N: dict[str, dict[str, str]] = {
         "about_description": "Truchement allows you to translate texts and files and to look up definitions in monolingual dictionaries.",
     },
     "fr": {
+        "via_pivot": "· via l'anglais",
+        "engine_ready": "Moteur de traduction prêt.",
         "title": "Truchement",
         "subtitle": "Traduire des textes et définir des mots",
         "source_lang": "Langue source",
@@ -186,6 +190,8 @@ I18N: dict[str, dict[str, str]] = {
         "about_description": "Truchement permet de traduire des textes et des fichiers et de consulter des définitions dans des dictionnaires monolingues.",
     },
     "de": {
+        "via_pivot": "· über Englisch",
+        "engine_ready": "Übersetzungs-Engine bereit.",
         "title": "Wörterbuch",
         "subtitle": "Texte übersetzen und Wörter definieren",
         "source_lang": "Quellsprache",
@@ -264,6 +270,8 @@ I18N: dict[str, dict[str, str]] = {
         "about_description": "Truchement ermöglicht es, Texte und Dateien zu übersetzen und Definitionen in einsprachigen Wörterbüchern nachzuschlagen.",
     },
     "es": {
+        "via_pivot": "· vía inglés",
+        "engine_ready": "Motor de traducción listo.",
         "title": "Diccionario",
         "subtitle": "Traducir textos y definir palabras",
         "source_lang": "Idioma origen",
@@ -354,8 +362,15 @@ def detect_ui_lang() -> str:
     la locale système.  Retourne 'en' si la locale n'est pas dans I18N.
     """
     try:
-        lc = locale.getdefaultlocale()[0] or ""
-        code = lc[:2].lower()
-        return code if code in I18N else "en"
+        lc = locale.getlocale()[0] or ""
     except Exception:
-        return "en"
+        lc = ""
+    if not lc:
+        import os
+        for var in ("LC_ALL", "LC_MESSAGES", "LANG"):
+            val = os.environ.get(var, "")
+            if val:
+                lc = val
+                break
+    code = lc[:2].lower() if lc else "en"
+    return code if code in I18N else "en"

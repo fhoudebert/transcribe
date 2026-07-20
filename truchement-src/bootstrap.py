@@ -441,3 +441,9 @@ os.makedirs(_ARGOS_PACKAGES_DIR, exist_ok=True)
 os.environ["ARGOS_PACKAGES_DIR"] = _ARGOS_PACKAGES_DIR
 os.environ["ARGOS_TRANSLATE_PACKAGE_DIR"] = _ARGOS_PACKAGES_DIR   # alias legacy
 
+# Constante publique : config.py scanne ce dossier (metadata.json des paquets)
+# pour peupler les listes de langues SANS importer argostranslate — voir
+# config.build_mapping(). Les autres modules doivent passer par elle plutôt
+# que de reconstruire le chemin.
+ARGOS_PACKAGES_DIR: str = _ARGOS_PACKAGES_DIR
+
