@@ -1,0 +1,966 @@
+From aab53d7425cf364cea9d8d7bf9ad85b769ec5d11 Mon Sep 17 00:00:00 2001
+From: fhoudebert <fhoudebert@users.noreply.github.com>
+Date: Tue, 21 Jul 2026 04:47:24 +0000
+Subject: [PATCH 1/2] =?UTF-8?q?IHM=20:=20s=C3=A9paration=20langue=20source?=
+ =?UTF-8?q?=20audio=20/=20langue=20de=20traduction?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Deux sélecteurs distincts : « Langue de l'audio » (défaut auto-détection,
+  alimente le -l de whisper) et « Traduire vers » (défaut fr, alimente argos),
+  avec option « Aucune traduction ».
+- La langue détectée par whisper (-l auto) est parsée dans le log et
+  réutilisée comme source pour la traduction et les métadonnées MKV.
+- -tr n'est envoyé à whisper que si la cible est l'anglais ; sinon
+  transcription en langue source puis argos source→cible.
+- Persistance des deux choix dans settings.json.
+- soustitre.sh accepte un 4e argument [src_lang|auto] (rétrocompatible).
+- Correctif : audio2en recevait la langue *cible* comme -l whisper.
+---
+ .gitignore                    |   3 +
+ soustitre.sh                  |  18 +++-
+ transcribe-src/app_config.py  |  31 +++++++
+ transcribe-src/i18n/en.json   |  10 +-
+ transcribe-src/i18n/fr.json   |  10 +-
+ transcribe-src/main_window.py | 167 +++++++++++++++++++++++++++-------
+ 6 files changed, 201 insertions(+), 38 deletions(-)
+ create mode 100644 .gitignore
+
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..c9c8b92
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,3 @@
++settings.json
++__pycache__/
++*.pyc
+diff --git a/soustitre.sh b/soustitre.sh
+index d1efc49..08eb5f0 100755
+--- a/soustitre.sh
++++ b/soustitre.sh
+@@ -1,9 +1,11 @@
+ #!/bin/bash
+ # ============================================================
+ #  soustitre.sh  —  Transcription audio -> SRT
+-#  Usage : soustitre.sh <fichier> [base|medium|large] [yes|no]
++#  Usage : soustitre.sh <fichier> [base|medium|large] [yes|no] [src_lang|auto]
+ #    3e argument : yes = traduit vers anglais (defaut)
+-#                  no  = transcrit dans la langue detectee
++#                  no  = transcrit dans la langue source
++#    4e argument : langue de l'audio passee a whisper via -l
++#                  auto (defaut) = auto-detection whisper
+ # ============================================================
+ set -euo pipefail
+ 
+@@ -15,7 +17,8 @@ WHISPER_BIN="$WHISPER_DIR/whisper-cli"
+ 
+ INPUT="${1:-}"
+ MODEL_NAME="${2:-medium}"
+-TRANSLATE="${3:-yes}"   # yes = -tr (→ anglais)  |  no = langue détectée
++TRANSLATE="${3:-yes}"   # yes = -tr (→ anglais)  |  no = langue source
++SRC_LANG="${4:-auto}"   # auto | fr | en | it | …  (-l whisper)
+ 
+ MODEL="$WHISPER_DIR/models/ggml-${MODEL_NAME}.bin"
+ 
+@@ -47,6 +50,13 @@ fi
+ echo "Fichier  : $INPUT"
+ echo "Modèle   : $MODEL_NAME"
+ echo "Mode     : $LABEL"
++echo "Lang src : $SRC_LANG"
++
++# Langue source explicite → -l ; auto → whisper détecte
++LANG_ARGS=()
++if [ "$SRC_LANG" != "auto" ]; then
++    LANG_ARGS=(-l "$SRC_LANG")
++fi
+ 
+ # ── 1. Extraction audio ──────────────────────────────────────
+ echo ""
+@@ -66,6 +76,7 @@ if [ "$TRANSLATE" = "yes" ]; then
+     "$WHISPER_BIN" \
+       -m "$MODEL" \
+       -f "$WAV_FILE" \
++      "${LANG_ARGS[@]}" \
+       -tr \
+       -osrt \
+       -of "$DIR/output"
+@@ -73,6 +84,7 @@ else
+     "$WHISPER_BIN" \
+       -m "$MODEL" \
+       -f "$WAV_FILE" \
++      "${LANG_ARGS[@]}" \
+       -osrt \
+       -of "$DIR/output"
+ fi
+diff --git a/transcribe-src/app_config.py b/transcribe-src/app_config.py
+index 19db576..aed9fed 100755
+--- a/transcribe-src/app_config.py
++++ b/transcribe-src/app_config.py
+@@ -57,3 +57,34 @@ def lang_label(code: str) -> str:
+ def lang_code(label_or_code: str) -> str:
+     """Extrait le code court depuis 'fr  Français' ou 'fr'."""
+     return label_or_code.strip().split()[0]
++
++# ── Langues source pour la transcription whisper ──────────────
++AUTO_LANG = "auto"          # auto-détection whisper (-l omis / -l auto)
++NO_TRANSLATION = "none"     # transcription seule, pas d'étape argos
++SOURCE_LANGUAGES: list[str] = [AUTO_LANG] + ALL_LANGUAGES
++
++# ── Préférences utilisateur (settings.json à la racine) ──────
++import json as _json
++import os as _os
++
++def _settings_path(root_dir: str) -> str:
++    return _os.path.join(root_dir, "settings.json")
++
++def load_settings(root_dir: str) -> dict:
++    """Charge settings.json (dict vide si absent/corrompu)."""
++    try:
++        with open(_settings_path(root_dir), "r", encoding="utf-8") as f:
++            data = _json.load(f)
++            return data if isinstance(data, dict) else {}
++    except Exception:
++        return {}
++
++def save_settings(root_dir: str, **values) -> None:
++    """Fusionne et persiste des clés dans settings.json (best-effort)."""
++    data = load_settings(root_dir)
++    data.update(values)
++    try:
++        with open(_settings_path(root_dir), "w", encoding="utf-8") as f:
++            _json.dump(data, f, ensure_ascii=False, indent=2)
++    except Exception:
++        pass
+diff --git a/transcribe-src/i18n/en.json b/transcribe-src/i18n/en.json
+index 6fa4570..43d999b 100755
+--- a/transcribe-src/i18n/en.json
++++ b/transcribe-src/i18n/en.json
+@@ -117,7 +117,7 @@
+     "rec_no_device_msg": "Select a microphone or switch to WASAPI.",
+     "sec_actions": "⑥ Processing",
+     "sec_file": "① Video / audio file",
+-    "sec_lang": "④ Target language (translation) or source language (transcription)",
++    "sec_lang": "④ Languages — source audio & translation",
+     "sec_log": "⑦ Execution log",
+     "sec_mkv": "⑤ MKV options",
+     "sec_model": "② Whisper model",
+@@ -171,5 +171,11 @@
+     "url_open_location": "📁  Open location",
+     "pre_filters_on": "Active filters: ",
+     "pre_filters_off": "No active filter.",
+-    "rec_done_unit": " KB"
++    "rec_done_unit": " KB",
++    "lbl_audio_lang": "Audio language: ",
++    "lang_auto": "auto  Auto-detect",
++    "lang_none": "—  No translation",
++    "log_lang_detected": "Detected language: {name}",
++    "err_no_target": "No translation language selected (“No translation”).",
++    "err_same_lang": "Source and target languages are identical: nothing to translate."
+ }
+diff --git a/transcribe-src/i18n/fr.json b/transcribe-src/i18n/fr.json
+index d127ba2..b86adf7 100755
+--- a/transcribe-src/i18n/fr.json
++++ b/transcribe-src/i18n/fr.json
+@@ -117,7 +117,7 @@
+     "rec_no_device_msg": "Sélectionnez un micro ou passez en WASAPI.",
+     "sec_actions": "⑥ Traitements",
+     "sec_file": "① Fichier vidéo / audio",
+-    "sec_lang": "④ Langue source(transcription) ou cible (traduction)",
++    "sec_lang": "④ Langues — audio source & traduction",
+     "sec_log": "⑦ Journal d'exécution",
+     "sec_mkv": "⑤ Options MKV",
+     "sec_model": "② Modèle Whisper",
+@@ -171,5 +171,11 @@
+     "url_open_location": "📁  Ouvrir l'emplacement",
+     "pre_filters_on": "Filtres actifs : ",
+     "pre_filters_off": "Aucun filtre actif.",
+-    "rec_done_unit": " Ko"
++    "rec_done_unit": " Ko",
++    "lbl_audio_lang": "Langue de l'audio : ",
++    "lang_auto": "auto  Auto-détection",
++    "lang_none": "—  Aucune traduction",
++    "log_lang_detected": "Langue détectée : {name}",
++    "err_no_target": "Aucune langue de traduction sélectionnée (« Aucune traduction »).",
++    "err_same_lang": "La langue source et la langue cible sont identiques : rien à traduire."
+ }
+diff --git a/transcribe-src/main_window.py b/transcribe-src/main_window.py
+index 51aaa29..c1f3a37 100755
+--- a/transcribe-src/main_window.py
++++ b/transcribe-src/main_window.py
+@@ -15,9 +15,15 @@ from tkinter import ttk, filedialog, messagebox
+ 
+ from app_config import (
+     IS_WINDOWS, NO_WINDOW,
+-    MODELS, TARGET_LANGUAGES, LANG_NAMES, ISO_639_2,
++    MODELS, TARGET_LANGUAGES, SOURCE_LANGUAGES, LANG_NAMES, ISO_639_2,
++    AUTO_LANG, NO_TRANSLATION,
+     lang_label, lang_code,
++    load_settings, save_settings,
+ )
++
++# Ligne stderr de whisper-cli en mode -l auto :
++#   "whisper_full_with_state: auto-detected language: it (p = 0.98…)"
++_DETECT_RE = re.compile(r"auto-detected language:\s*([a-z]{2,3})")
+ from app_styles import (
+     BG, BG2, BG3, BG4, ACCENT, GREEN, WARN, DANGER, TEAL,
+     FG, FG2, BORDER,
+@@ -42,8 +48,9 @@ class Transcribe(tk.Tk):
+ 
+         self.video_path    = tk.StringVar()
+         self.model_key     = tk.StringVar(value="medium")  # code du modèle
+-        self.to_lang       = tk.StringVar(value="fr")
+-        self.from_lang     = "en"
++        self.src_lang      = tk.StringVar(value=AUTO_LANG)  # langue de l'audio (-l whisper)
++        self.to_lang       = tk.StringVar(value="fr")       # langue de traduction (argos)
++        self._detected_lang: str | None = None              # renseignée par whisper -l auto
+         self.pre_loudnorm  = tk.BooleanVar(value=True)
+         self.pre_denoise   = tk.BooleanVar(value=False)
+         self.pre_voiceband = tk.BooleanVar(value=False)
+@@ -54,6 +61,13 @@ class Transcribe(tk.Tk):
+             "TRANSCRIBE_BASE_DIR",
+             os.path.dirname(os.path.abspath(__file__)))
+ 
++        # Préférences persistées (settings.json à la racine)
++        _s = load_settings(self.root_dir)
++        if _s.get("src_lang") in SOURCE_LANGUAGES:
++            self.src_lang.set(_s["src_lang"])
++        if _s.get("target_lang") in [NO_TRANSLATION] + TARGET_LANGUAGES:
++            self.to_lang.set(_s["target_lang"])
++
+         self._btn_translate = None
+         self._btn_include   = None
+         self._buttons_all: list[tk.Button] = []
+@@ -547,19 +561,35 @@ class Transcribe(tk.Tk):
+ 
+         # ④ Langue
+         section(body, t("sec_lang"))
++
++        # — Langue de la source audio (guide le -l de whisper)
++        srow = tk.Frame(body, bg=BG)
++        srow.pack(fill="x", pady=(0,2), **pad)
++        tk.Label(srow, text=t("lbl_audio_lang"), bg=BG, fg=FG2,
++                 font=FONT_UI).pack(side="left")
++        self._src_cb = ttk.Combobox(
++            srow, textvariable=self.src_lang,
++            values=[self._lang_display(c) for c in SOURCE_LANGUAGES],
++            width=20, state="readonly")
++        self._src_cb.pack(side="left", padx=(8,0))
++        self._src_cb.bind("<<ComboboxSelected>>", self._on_src_lang_select)
++        self.src_lang.set(self._lang_display(
++            self._lang_from_display(self.src_lang.get())))
++
++        # — Langue de traduction cible (étape argos)
+         lrow = tk.Frame(body, bg=BG)
+         lrow.pack(fill="x", pady=(0,2), **pad)
+         tk.Label(lrow, text=t("lbl_translate_to"), bg=BG, fg=FG2,
+                  font=FONT_UI).pack(side="left")
+         self._lang_cb = ttk.Combobox(
+             lrow, textvariable=self.to_lang,
+-            values=[lang_label(c) for c in TARGET_LANGUAGES],
++            values=[self._lang_display(c)
++                    for c in [NO_TRANSLATION] + TARGET_LANGUAGES],
+             width=20, state="readonly")
+         self._lang_cb.pack(side="left", padx=(8,0))
+         self._lang_cb.bind("<<ComboboxSelected>>", self._on_lang_select)
+-        self.to_lang.set(lang_label(lang_code(self.to_lang.get())
+-                                    if len(self.to_lang.get()) <= 3
+-                                    else self.to_lang.get()))
++        self.to_lang.set(self._lang_display(
++            self._lang_from_display(self.to_lang.get())))
+ 
+         hdivider(body)
+ 
+@@ -632,11 +662,39 @@ class Transcribe(tk.Tk):
+             self._filter_info.config(
+                 text=f"  {t('pre_filters_off')}", fg=FG2)
+ 
++    def _lang_display(self, code: str) -> str:
++        """Libellé combobox pour un code, y compris auto / none."""
++        if code == AUTO_LANG:      return t("lang_auto")
++        if code == NO_TRANSLATION: return t("lang_none")
++        return lang_label(code)
++
++    def _lang_from_display(self, label: str) -> str:
++        """Code depuis un libellé combobox (ou un code déjà nu)."""
++        if label == t("lang_auto"):  return AUTO_LANG
++        if label == t("lang_none"):  return NO_TRANSLATION
++        return lang_code(label)
++
+     def _on_lang_select(self, _=None):
+-        self.to_lang.set(lang_code(self.to_lang.get()))
++        self.to_lang.set(self._lang_from_display(self.to_lang.get()))
++        save_settings(self.root_dir, target_lang=self._get_lang())
++
++    def _on_src_lang_select(self, _=None):
++        self.src_lang.set(self._lang_from_display(self.src_lang.get()))
++        self._detected_lang = None   # nouveau choix ⇒ oublie la détection
++        save_settings(self.root_dir, src_lang=self._get_src_lang())
+ 
+     def _get_lang(self) -> str:
+-        return lang_code(self.to_lang.get())
++        return self._lang_from_display(self.to_lang.get())
++
++    def _get_src_lang(self) -> str:
++        return self._lang_from_display(self.src_lang.get())
++
++    def _resolved_src_lang(self) -> str | None:
++        """Langue source effective : choix explicite, sinon détection whisper."""
++        src = self._get_src_lang()
++        if src != AUTO_LANG:
++            return src
++        return self._detected_lang
+ 
+     def _log_line(self, txt: str):
+         self._log.configure(state="normal")
+@@ -712,7 +770,15 @@ class Transcribe(tk.Tk):
+                     text=True, encoding="utf-8", errors="replace",
+                     cwd=_cwd, creationflags=NO_WINDOW)
+                 for line in proc.stdout:
+-                    self.after(0, self._log_line, line.rstrip())
++                    txt = line.rstrip()
++                    m = _DETECT_RE.search(txt)
++                    if m:
++                        code = m.group(1)
++                        self._detected_lang = code
++                        self.after(0, self._log_line,
++                                   "🌐 " + t("log_lang_detected",
++                                             name=LANG_NAMES.get(code, code)))
++                    self.after(0, self._log_line, txt)
+                 proc.wait()
+                 if proc.returncode == 0:
+                     self.after(0, self._log_line,
+@@ -780,8 +846,10 @@ class Transcribe(tk.Tk):
+     def _run_audio(self):
+         video = self._validate()
+         if not video: return
+-        lang = self._get_lang()   # langue cible = -l passé à whisper
+-        cmd  = self._script("audio2en") + [video, self._model(), lang]
++        src = self._get_src_lang()   # langue de l'audio = -l passé à whisper
++        cmd = self._script("audio2en") + [video, self._model()]
++        if src != AUTO_LANG:
++            cmd.append(src)          # omis ⇒ auto-détection whisper
+         self._run_cmd(cmd, t("btn_audio").replace("\n", " "))
+ 
+ 
+@@ -1008,28 +1076,39 @@ class Transcribe(tk.Tk):
+                     self.after(0, self._idle)
+                     return
+                 srt_base = wp[:-4]
++                src   = self._get_src_lang()
++                to_en = (self._get_lang() == "en")   # -tr ne sait traduire que vers en
+                 # Sur Windows, subprocess.Popen (via CreateProcess)
+                 # quote automatiquement les éléments contenant des espaces.
+                 # Ne jamais entourer les chemins de guillemets dans la liste.
+                 cmd_w = [wb,
+                          "-m", wm,
+-                         "-f", os.path.normpath(wp),
+-                         "-tr",
+-                         "-osrt",
+-                         "-of", os.path.normpath(srt_base)]
++                         "-f", os.path.normpath(wp)]
++                if src != AUTO_LANG:
++                    cmd_w += ["-l", src]
++                if to_en:
++                    cmd_w += ["-tr"]
++                cmd_w += ["-osrt",
++                          "-of", os.path.normpath(srt_base)]
+                 self._run_cmd(cmd_w, t("btn_whisper").replace("\n"," "),
+-                              on_success=lambda: self._after_whisper_pre(wp, b))
++                              on_success=lambda: self._after_whisper_pre(
++                                  wp, b, to_en))
+ 
+             self._run_cmd(cmd_pre, t("sec_preproc").split("(")[0].strip(),
+                           on_success=after_pre)
+         else:
+-            cmd = self._script("soustitre") + [os.path.normpath(video), self._model()]
++            src   = self._get_src_lang()
++            to_en = (self._get_lang() == "en")
++            cmd = self._script("soustitre") + [
++                os.path.normpath(video), self._model(),
++                "yes" if to_en else "no", src]
+             self._run_cmd(cmd, t("btn_whisper").replace("\n"," "),
+                           on_success=self._after_whisper)
+ 
+-    def _after_whisper_pre(self, wav_pre: str, base: str):
++    def _after_whisper_pre(self, wav_pre: str, base: str,
++                           translated_en: bool = True):
+         pre_base = os.path.splitext(wav_pre)[0]
+-        tgt_srt  = base + ".en.srt"
++        tgt_srt  = base + (".en.srt" if translated_en else ".srt")
+         for candidate in (pre_base + ".en.srt", pre_base + ".srt"):
+             if os.path.isfile(candidate):
+                 self._log_line(t("log_rename") +
+@@ -1050,28 +1129,47 @@ class Transcribe(tk.Tk):
+         self._after_whisper()
+ 
+     def _after_whisper(self):
+-        self._show_translate_btn()
+-        ChoiceDialog(self,
+-            title=t("dlg_subtitles_title"),
+-            message=t("dlg_subtitles_msg"),
+-            choices=[
++        if self._get_lang() == NO_TRANSLATION:
++            choices = [
++                (t("choice_mkv_direct"), self._run_include),
++                (t("choice_quit"),       self.destroy),
++            ]
++        else:
++            self._show_translate_btn()
++            choices = [
+                 (t("choice_translate"),  self._run_translate),
+                 (t("choice_mkv_direct"), self._run_include),
+                 (t("choice_quit"),       self.destroy),
+-            ])
++            ]
++        ChoiceDialog(self,
++            title=t("dlg_subtitles_title"),
++            message=t("dlg_subtitles_msg"),
++            choices=choices)
+ 
+     def _run_translate(self):
+         video = self._validate()
+         if not video: return
++        lang = self._get_lang()
++        if lang == NO_TRANSLATION:
++            messagebox.showinfo(t("sec_lang").split(" ", 1)[-1],
++                                t("err_no_target"))
++            return
+         base = os.path.splitext(video)[0]
+-        srt  = base + ".en.srt"
+-        if not os.path.isfile(srt): srt = base + ".srt"
++        # SRT anglais (whisper -tr) prioritaire, sinon SRT langue source
++        srt       = base + ".en.srt"
++        from_lang = "en"
++        if not os.path.isfile(srt):
++            srt = base + ".srt"
++            from_lang = self._resolved_src_lang() or "en"
+         if not os.path.isfile(srt):
+             messagebox.showwarning(t("err_srt_missing"),
+                                    t("err_srt_missing_msg") + base)
+             return
+-        lang = self._get_lang()
+-        cmd  = self._script("traduire-srt") + [srt, self.from_lang, lang]
++        if from_lang == lang:
++            messagebox.showinfo(t("btn_translate").replace("\n", " "),
++                                t("err_same_lang"))
++            return
++        cmd  = self._script("traduire-srt") + [srt, from_lang, lang]
+         self._run_cmd(cmd, t("btn_translate").replace("\n"," "),
+                       on_success=self._after_translate)
+ 
+@@ -1091,7 +1189,10 @@ class Transcribe(tk.Tk):
+         row.pack(fill="x", pady=(6,0))
+         tk.Label(row, text=t("choice_other_lang"), bg=BG2, fg=FG2,
+                  font=FONT_UI).pack(side="left")
+-        var = tk.StringVar(value=lang_label(self._get_lang()))
++        cur = self._get_lang()
++        if cur not in TARGET_LANGUAGES:
++            cur = "fr"
++        var = tk.StringVar(value=lang_label(cur))
+         cb  = ttk.Combobox(row, textvariable=var,
+                            values=[lang_label(c) for c in TARGET_LANGUAGES],
+                            width=18, state="readonly")
+@@ -1110,6 +1211,8 @@ class Transcribe(tk.Tk):
+         if not video: return
+         base    = os.path.splitext(video)[0]
+         lang    = self._get_lang()
++        if lang == NO_TRANSLATION:   # transcription seule ⇒ langue source
++            lang = self._resolved_src_lang() or "und"
+         srt_en  = base + ".en.srt"
+         srt_tgt = base + f".{lang}.srt"
+         srt_nat = base + ".srt"
+@@ -1169,6 +1272,8 @@ class Transcribe(tk.Tk):
+         Détecte si la source est audio-only pour adapter les -map.
+         """
+         lang_str   = self._get_lang()
++        if lang_str == NO_TRANSLATION:
++            lang_str = self._resolved_src_lang() or "und"
+         lang3      = ISO_639_2.get(lang_str, lang_str)
+         audio_only = self._is_audio_only(video)
+ 
+-- 
+2.43.0
+
+
+From af84c4d37d39fe5d921cf9459b65d9bf140af665 Mon Sep 17 00:00:00 2001
+From: fhoudebert <fhoudebert@users.noreply.github.com>
+Date: Tue, 21 Jul 2026 05:04:24 +0000
+Subject: [PATCH 2/2] IHM une ligne + installation ffmpeg/yt-dlp/whisper via
+ downloads.csv
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- Les deux sélecteurs de langue (audio source, traduction) partagent
+  désormais une seule ligne dans la section ④.
+
+- download_from_csv.sh et .py : format étendu
+  destination,url[,format[,os[,move]]]
+  * os   : linux|win|mac|all — filtre par plateforme, surcharge CSV_OS
+           (ex. CSV_OS=win pour préparer une clé Windows depuis Linux)
+  * move : motifs glob déplacés/renommés (src->dst) à la racine de la
+           destination après extraction ; chmod +x (POSIX), suppression
+           des dossiers enveloppe, avertissement si aucune correspondance
+  * marqueur .installed-<fichier> : les archives extraites puis supprimées
+    ne sont plus retéléchargées à chaque relance
+  * extraction zip Python : restauration des bits de permission
+
+- downloads.csv : lignes actives pour
+  * ffmpeg/ffprobe BtbN master-latest LGPL (linux tar.xz, win zip),
+    aplatis dans build/ffmpeg/bin
+  * yt-dlp dernière version (URL releases/latest) : yt-dlp_linux renommé
+    en build/yt-dlp/yt-dlp, yt-dlp.exe pour Windows
+  * whisper.cpp v1.8.6 whisper-bin-x64.zip (Windows), Release/* aplati
+    dans build/whisper ; note pour un futur build Linux auto-hébergé
+
+Testé en réel : linux (shell) et CSV_OS=win (python), binaires exécutables,
+relance idempotente.
+---
+ download_from_csv.py          | 105 +++++++++++++++++++++++++--
+ download_from_csv.sh          | 130 +++++++++++++++++++++++++++++-----
+ downloads.csv                 |  24 +++++--
+ transcribe-src/main_window.py |  18 +++--
+ 4 files changed, 239 insertions(+), 38 deletions(-)
+
+diff --git a/download_from_csv.py b/download_from_csv.py
+index ee9dd51..abfad7a 100644
+--- a/download_from_csv.py
++++ b/download_from_csv.py
+@@ -6,18 +6,32 @@ download_from_csv.py — Télécharge les composants listés dans downloads.csv
+ c'est le chemin utilisé sous WINDOWS (via setupPython_and_download.bat),
+ et il fonctionne à l'identique sous Linux/macOS.
+ 
+-Format d'une ligne : destination,url[,format]
++Format d'une ligne : destination,url[,format[,os[,move]]]
+   destination  chemin relatif à la racine de l'application (dossier du CSV)
+   format       vide|auto → détection par extension ; zip ; tar.gz|tgz ;
+                tar.bz2|tbz2 ; tar.xz|txz ; gz ; 7z|7zip ; no
++  os           linux | win | mac | all (défaut) → la ligne n'est traitée
++               que si l'OS courant correspond. Surcharge possible via la
++               variable d'environnement CSV_OS (ex. CSV_OS=win pour préparer
++               une clé Windows depuis Linux ; CSV_OS=all pour tout traiter).
++  move         opérations post-extraction, séparées par « ; » :
++               motif_glob        → déplace les fichiers correspondants à la
++                                   racine de la destination (aplatit les
++                                   dossiers enveloppe des archives)
++               motif->nouveau_nom→ idem avec renommage (motif unique)
++               Les fichiers déplacés reçoivent le bit exécutable (POSIX),
++               puis les dossiers vides restants sont supprimés.
+ Lignes vides et commentaires (#) ignorés. Un fichier déjà présent n'est
+-pas retéléchargé : relancer le script reprend une installation interrompue.
++pas retéléchargé ; pour les archives (extraites puis supprimées), un
++marqueur .installed-<fichier> mémorise l'installation : relancer le
++script reprend une installation interrompue sans rien retélécharger.
+ 
+ Usage : python download_from_csv.py [fichier.csv]      (défaut: downloads.csv)
+ """
+ 
+ from __future__ import annotations
+ 
++import glob
+ import gzip
+ import os
+ import shutil
+@@ -30,6 +44,61 @@ import zipfile
+ UA = {"User-Agent": "transcribe-install/1.0"}
+ 
+ 
++def current_os() -> str:
++    """OS effectif : CSV_OS si défini, sinon la plateforme courante."""
++    override = os.environ.get("CSV_OS", "").strip().lower()
++    if override:
++        return override
++    if sys.platform.startswith("win"):
++        return "win"
++    if sys.platform == "darwin":
++        return "mac"
++    return "linux"
++
++
++def os_matches(tag: str, cur: str) -> bool:
++    t = (tag or "").strip().lower()
++    if not t or t in ("all", "any") or cur == "all":
++        return True
++    if t == "windows":
++        t = "win"
++    if t in ("macos", "darwin"):
++        t = "mac"
++    return t == cur
++
++
++def apply_moves(destdir: str, spec: str) -> None:
++    """Applique les opérations « move » : motif[->nouveau_nom] ; …"""
++    wrappers: set[str] = set()   # dossiers enveloppe à supprimer à la fin
++    for op in filter(None, (o.strip() for o in spec.split(";"))):
++        pat, _, newname = op.partition("->")
++        pat, newname = pat.strip(), newname.strip()
++        matches = glob.glob(os.path.join(destdir, *pat.split("/")))
++        if not matches:
++            print(f"  [AVERTISSEMENT] move '{pat}' : aucune correspondance")
++            continue
++        for src in matches:
++            # Premier segment du chemin relatif = enveloppe candidate
++            rel = os.path.relpath(src, destdir)
++            wrappers.add(os.path.join(destdir, rel.split(os.sep)[0]))
++            name = newname if (newname and len(matches) == 1) \
++                   else os.path.basename(src)
++            dst = os.path.join(destdir, name)
++            if os.path.abspath(src) != os.path.abspath(dst):
++                if os.path.isdir(dst):
++                    shutil.rmtree(dst)
++                elif os.path.exists(dst):
++                    os.remove(dst)
++                shutil.move(src, dst)
++            if os.name == "posix" and os.path.isfile(dst):
++                os.chmod(dst, os.stat(dst).st_mode | 0o755)
++    # Supprime les dossiers enveloppe (seulement s'ils sont des dossiers :
++    # un fichier resté en place à la racine n'est jamais touché)
++    for w in wrappers:
++        if os.path.isdir(w):
++            shutil.rmtree(w, ignore_errors=True)
++
++
+ def detect_format(filename: str, fmt: str) -> str:
+     if fmt and fmt != "auto":
+         return fmt
+@@ -51,7 +120,12 @@ def extract(archive: str, destdir: str, fmt: str) -> None:
+         return
+     if fmt == "zip":
+         with zipfile.ZipFile(archive) as zf:
+-            zf.extractall(destdir)
++            for info in zf.infolist():
++                zf.extract(info, destdir)
++                if os.name == "posix":
++                    mode = info.external_attr >> 16
++                    if mode:
++                        os.chmod(os.path.join(destdir, info.filename), mode)
+         os.remove(archive)
+     elif fmt in ("tar.gz", "tar.bz2", "tar.xz"):
+         with tarfile.open(archive) as tf:
+@@ -98,6 +172,8 @@ def main(argv: list[str]) -> int:
+     # dire au dossier du CSV (même convention que download-assistant et que
+     # le repli shell Linux).
+     base_dir = os.path.dirname(os.path.abspath(csv_path))
++    cur_os   = current_os()
++    print(f"OS cible : {cur_os}")
+ 
+     n_ok = n_skip = n_fail = 0
+     with open(csv_path, encoding="utf-8") as fh:
+@@ -107,16 +183,26 @@ def main(argv: list[str]) -> int:
+                 continue
+             parts = [p.strip() for p in line.split(",")]
+             dest, url = parts[0], parts[1] if len(parts) > 1 else ""
+-            fmt = parts[2] if len(parts) > 2 else ""
++            fmt    = parts[2] if len(parts) > 2 else ""
++            os_tag = parts[3] if len(parts) > 3 else ""
++            moves  = parts[4] if len(parts) > 4 else ""
+             if not dest or not url:
+                 continue
++            if not os_matches(os_tag, cur_os):
++                continue          # ligne destinée à un autre OS
+ 
+             destdir = os.path.join(base_dir, *dest.split("/"))
+             os.makedirs(destdir, exist_ok=True)
+             filename = os.path.basename(url.split("?", 1)[0])
+             target = os.path.join(destdir, filename)
+-
+-            if os.path.exists(target):
++            eff_fmt = detect_format(filename, fmt)
++            # Les archives sont supprimées après extraction : un marqueur
++            # mémorise l'installation pour ne pas retélécharger au prochain
++            # lancement. Idem quand « move » renomme le fichier téléchargé.
++            marker = (os.path.join(destdir, f".installed-{filename}")
++                      if (eff_fmt != "no" or moves) else "")
++
++            if (marker and os.path.exists(marker)) or os.path.exists(target):
+                 print(f"[skip] Déjà présent : {dest}/{filename}")
+                 n_skip += 1
+                 continue
+@@ -125,7 +211,12 @@ def main(argv: list[str]) -> int:
+             print(f"       → {dest}/")
+             try:
+                 fetch(url, target)
+-                extract(target, destdir, detect_format(filename, fmt))
++                extract(target, destdir, eff_fmt)
++                if moves:
++                    apply_moves(destdir, moves)
++                if marker:
++                    with open(marker, "w", encoding="utf-8") as mk:
++                        mk.write(url + "\n")
+                 n_ok += 1
+             except Exception as exc:  # réseau, extraction…
+                 print(f"  [ÉCHEC] {type(exc).__name__}: {exc}")
+diff --git a/download_from_csv.sh b/download_from_csv.sh
+index 0715f4b..1d67eff 100755
+--- a/download_from_csv.sh
++++ b/download_from_csv.sh
+@@ -4,15 +4,25 @@
+ #
+ #  Repli 100 % shell du binaire download-assistant : mêmes fichier et format.
+ #
+-#  Format d'une ligne : destination,url[,format]
++#  Format d'une ligne : destination,url[,format[,os[,move]]]
+ #    destination  chemin relatif à la racine de l'application (ex. build/dic)
+ #    url          URL à télécharger
+ #    format       vide|auto → détection par extension ; zip ; tar.gz|tgz ;
+ #                 tar.bz2|tbz2 ; tar.xz|txz ; gz ; 7z|7zip ; no (pas d'extraction)
++#    os           linux | win | mac | all (défaut) : la ligne n'est traitée que
++#                 si l'OS courant correspond. Surcharge : CSV_OS=win ./download…
++#                 pour préparer une clé Windows depuis Linux (CSV_OS=all : tout).
++#    move         opérations post-extraction séparées par « ; » :
++#                   motif_glob         → déplace les correspondances à la racine
++#                                        de la destination (aplatit l'enveloppe)
++#                   motif->nouveau_nom → idem avec renommage (motif unique)
++#                 Les fichiers déplacés reçoivent chmod +x, puis les dossiers
++#                 vides restants sont supprimés.
+ #
+ #  Lignes vides et lignes commençant par # ignorées.
+-#  Un fichier déjà présent à destination n'est PAS retéléchargé (reprise
+-#  d'installation interrompue : relancez simplement le script).
++#  Un fichier déjà présent à destination n'est PAS retéléchargé ; pour les
++#  archives (extraites puis supprimées), un marqueur .installed-<fichier>
++#  mémorise l'installation (reprise d'installation : relancez simplement).
+ #
+ #  Usage : download_from_csv.sh [fichier.csv]        (défaut : downloads.csv)
+ # ==============================================================================
+@@ -32,22 +42,80 @@ fi
+ # de download-assistant).
+ BASE_DIR="$(cd "$(dirname "$CSV")" && pwd)"
+ 
+-# ── Outil de téléchargement ───────────────────────────────────────────────────
+-if command -v curl >/dev/null 2>&1; then
+-    fetch() { curl -fL --retry 3 -o "$1" "$2"; }
+-elif command -v wget >/dev/null 2>&1; then
+-    fetch() { wget -O "$1" "$2"; }
+-else
+-    echo "[ERREUR] Ni curl ni wget disponibles."
+-    exit 1
++# ── OS cible (surcharge possible : CSV_OS=win|linux|mac|all) ──────────────────
++CUR_OS="${CSV_OS:-}"
++if [ -z "$CUR_OS" ]; then
++    case "$(uname -s)" in
++        Linux*)                 CUR_OS="linux" ;;
++        Darwin*)                CUR_OS="mac"   ;;
++        MINGW*|MSYS*|CYGWIN*)   CUR_OS="win"   ;;
++        *)                      CUR_OS="linux" ;;
++    esac
+ fi
++echo "OS cible : $CUR_OS"
++
++os_matches() {   # os_matches <tag>
++    local t
++    t="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
++    case "$t" in
++        ""|all|any)        return 0 ;;
++        windows)           t="win" ;;
++        macos|darwin)      t="mac" ;;
++    esac
++    [ "$CUR_OS" = "all" ] && return 0
++    [ "$t" = "$CUR_OS" ]
++}
+ 
+-# ── Extraction ────────────────────────────────────────────────────────────────
+-extract() {   # extract <archive> <destdir> <format>
+-    local archive="$1" dest="$2" fmt="$3"
++apply_moves() {  # apply_moves <destdir> <movespec>
++    local dest="$1" spec="$2" op pat new src dst rel
++    [ -n "$spec" ] || return 0
++    local ops=() wrappers=()
++    IFS=';' read -r -a ops <<< "$spec"
++    shopt -s nullglob
++    for op in "${ops[@]}"; do
++        op="$(printf '%s' "$op" | sed 's/^ *//; s/ *$//')"
++        [ -n "$op" ] || continue
++        pat="${op%%->*}"
++        new=""
++        [ "$op" != "$pat" ] && new="${op#*->}"
++        pat="$(printf '%s' "$pat" | sed 's/ *$//')"
++        new="$(printf '%s' "$new" | sed 's/^ *//')"
++        local matches=( $dest/$pat )
++        if [ ${#matches[@]} -eq 0 ]; then
++            echo "  [AVERTISSEMENT] move '$pat' : aucune correspondance"
++            continue
++        fi
++        for src in "${matches[@]}"; do
++            # Premier segment du chemin relatif = enveloppe candidate
++            rel="${src#"$dest"/}"
++            wrappers+=( "$dest/${rel%%/*}" )
++            if [ -n "$new" ] && [ ${#matches[@]} -eq 1 ]; then
++                dst="$dest/$new"
++            else
++                dst="$dest/$(basename "$src")"
++            fi
++            if [ "$src" != "$dst" ]; then
++                rm -rf "$dst"
++                mv "$src" "$dst"
++            fi
++            if [ -f "$dst" ]; then
++                chmod +x "$dst" 2>/dev/null || true
++            fi
++        done
++    done
++    shopt -u nullglob
++    # Supprime les dossiers enveloppe (seulement s'ils sont des dossiers :
++    # un fichier resté en place à la racine n'est jamais touché)
++    local w
++    for w in "${wrappers[@]}"; do
++        if [ -d "$w" ]; then rm -rf "$w"; fi
++    done
++}
+ 
++detect_format() {   # detect_format <fichier> <format_csv>  →  echo format effectif
++    local f="$1" fmt="$2"
+     if [ -z "$fmt" ] || [ "$fmt" = "auto" ]; then
+-        case "$archive" in
++        case "$f" in
+             *.zip)              fmt="zip" ;;
+             *.7z)               fmt="7z" ;;
+             *.tar.gz|*.tgz)     fmt="tar.gz" ;;
+@@ -57,6 +125,22 @@ extract() {   # extract <archive> <destdir> <format>
+             *)                  fmt="no" ;;
+         esac
+     fi
++    printf '%s' "$fmt"
++}
++
++# ── Outil de téléchargement ───────────────────────────────────────────────────
++if command -v curl >/dev/null 2>&1; then
++    fetch() { curl -fL --retry 3 -o "$1" "$2"; }
++elif command -v wget >/dev/null 2>&1; then
++    fetch() { wget -O "$1" "$2"; }
++else
++    echo "[ERREUR] Ni curl ni wget disponibles."
++    exit 1
++fi
++
++# ── Extraction ────────────────────────────────────────────────────────────────
++extract() {   # extract <archive> <destdir> <format_effectif>
++    local archive="$1" dest="$2" fmt="$3"
+ 
+     case "$fmt" in
+         no) return 0 ;;
+@@ -95,15 +179,25 @@ while IFS= read -r line || [ -n "$line" ]; do
+     dest="$(printf '%s' "$line" | cut -d, -f1)"
+     url="$(printf '%s'  "$line" | cut -d, -f2)"
+     fmt="$(printf '%s'  "$line" | cut -d, -f3)"
++    os_tag="$(printf '%s' "$line" | cut -d, -f4)"
++    moves="$(printf '%s'  "$line" | cut -d, -f5)"
+     [ -n "$dest" ] && [ -n "$url" ] || continue
++    os_matches "$os_tag" || continue     # ligne destinée à un autre OS
+ 
+     destdir="$BASE_DIR/$dest"
+     mkdir -p "$destdir"
+ 
+     filename="$(basename "${url%%\?*}")"
+     target="$destdir/$filename"
++    eff_fmt="$(detect_format "$filename" "$fmt")"
++    # Les archives sont supprimées après extraction : un marqueur mémorise
++    # l'installation (idem quand « move » renomme le fichier téléchargé).
++    marker=""
++    if [ "$eff_fmt" != "no" ] || [ -n "$moves" ]; then
++        marker="$destdir/.installed-$filename"
++    fi
+ 
+-    if [ -f "$target" ]; then
++    if { [ -n "$marker" ] && [ -f "$marker" ]; } || [ -f "$target" ]; then
+         echo "⏭  Déjà présent : $dest/$filename"
+         n_skip=$((n_skip + 1))
+         continue
+@@ -113,7 +207,9 @@ while IFS= read -r line || [ -n "$line" ]; do
+     echo "    → $dest/"
+     if fetch "$target.part" "$url"; then
+         mv "$target.part" "$target"
+-        extract "$target" "$destdir" "$fmt"
++        extract "$target" "$destdir" "$eff_fmt"
++        if [ -n "$moves" ];  then apply_moves "$destdir" "$moves"; fi
++        if [ -n "$marker" ]; then printf '%s\n' "$url" > "$marker"; fi
+         n_ok=$((n_ok + 1))
+     else
+         rm -f "$target.part"
+diff --git a/downloads.csv b/downloads.csv
+index 150897e..1158bdd 100755
+--- a/downloads.csv
++++ b/downloads.csv
+@@ -29,11 +29,27 @@ build/whisper/models,https://huggingface.co/ggerganov/whisper.cpp/resolve/main/g
+ 
+ # ─────────────────────────────────────────────────────────────────────────────
+ # binaires pour transcribe : ffmpeg, whisper.cpp, yt-dlp
++#
++# Colonnes étendues : destination,url,format,os,move
++#   os   : linux | win | all — ligne traitée seulement sur l'OS correspondant
++#          (surcharge : CSV_OS=win pour préparer une clé Windows depuis Linux)
++#   move : après extraction, motifs déplacés/renommés à la racine de la
++#          destination (aplatit les dossiers enveloppe, chmod +x, nettoyage)
++#   NB  : ces colonnes sont gérées par download_from_csv.sh / .py ; le binaire
++#         download-assistant, s'il est présent, ne les connaît pas encore.
+ # ─────────────────────────────────────────────────────────────────────────────
+-#build/ffmpeg/bin,https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-lgpl.tar.xz
+-#build/dic/bin,https://github.com/fhoudebert/transcribe/releases/download/latest/ffmpeg-master-latest-linux64-lgpl.tar.xz
+-#build/yt-dlp,https://github.com/yt-dlp/yt-dlp/releases/download/2026.06.09/yt-dlp_linux.zip
+-#build/whisper,https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.6/whisper-bin-x64.zip
++# ffmpeg + ffprobe — builds BtbN « master latest » LGPL
++build/ffmpeg/bin,https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-lgpl.tar.xz,tar.xz,linux,*/bin/*
++build/ffmpeg/bin,https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip,zip,win,*/bin/*
++# yt-dlp — dernière version stable (URL « latest » de GitHub)
++build/yt-dlp,https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux,auto,linux,yt-dlp_linux->yt-dlp
++build/yt-dlp,https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe,auto,win
++# whisper.cpp — binaires Windows officiels (whisper-cli.exe + DLL sous Release/)
++build/whisper,https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.6/whisper-bin-x64.zip,zip,win,Release/*
++# Linux : pas de binaire whisper-cli officiel publié — compilez whisper.cpp
++# (cmake) et copiez whisper-cli dans build/whisper/, ou hébergez votre propre
++# build sur les releases du dépôt puis décommentez, ex. :
++#build/whisper,https://github.com/fhoudebert/transcribe/releases/download/latest/whisper-bin-linux64.tar.xz,tar.xz,linux,*/whisper-cli
+ 
+ 
+ # ─────────────────────────────────────────────────────────────────────────────
+diff --git a/transcribe-src/main_window.py b/transcribe-src/main_window.py
+index c1f3a37..f2945d9 100755
+--- a/transcribe-src/main_window.py
++++ b/transcribe-src/main_window.py
+@@ -559,33 +559,31 @@ class Transcribe(tk.Tk):
+ 
+         hdivider(body)
+ 
+-        # ④ Langue
++        # ④ Langue — source audio et cible de traduction sur une ligne
+         section(body, t("sec_lang"))
++        lrow = tk.Frame(body, bg=BG)
++        lrow.pack(fill="x", pady=(0,2), **pad)
+ 
+         # — Langue de la source audio (guide le -l de whisper)
+-        srow = tk.Frame(body, bg=BG)
+-        srow.pack(fill="x", pady=(0,2), **pad)
+-        tk.Label(srow, text=t("lbl_audio_lang"), bg=BG, fg=FG2,
++        tk.Label(lrow, text=t("lbl_audio_lang"), bg=BG, fg=FG2,
+                  font=FONT_UI).pack(side="left")
+         self._src_cb = ttk.Combobox(
+-            srow, textvariable=self.src_lang,
++            lrow, textvariable=self.src_lang,
+             values=[self._lang_display(c) for c in SOURCE_LANGUAGES],
+-            width=20, state="readonly")
+-        self._src_cb.pack(side="left", padx=(8,0))
++            width=18, state="readonly")
++        self._src_cb.pack(side="left", padx=(8,18))
+         self._src_cb.bind("<<ComboboxSelected>>", self._on_src_lang_select)
+         self.src_lang.set(self._lang_display(
+             self._lang_from_display(self.src_lang.get())))
+ 
+         # — Langue de traduction cible (étape argos)
+-        lrow = tk.Frame(body, bg=BG)
+-        lrow.pack(fill="x", pady=(0,2), **pad)
+         tk.Label(lrow, text=t("lbl_translate_to"), bg=BG, fg=FG2,
+                  font=FONT_UI).pack(side="left")
+         self._lang_cb = ttk.Combobox(
+             lrow, textvariable=self.to_lang,
+             values=[self._lang_display(c)
+                     for c in [NO_TRANSLATION] + TARGET_LANGUAGES],
+-            width=20, state="readonly")
++            width=18, state="readonly")
+         self._lang_cb.pack(side="left", padx=(8,0))
+         self._lang_cb.bind("<<ComboboxSelected>>", self._on_lang_select)
+         self.to_lang.set(self._lang_display(
+-- 
+2.43.0
+

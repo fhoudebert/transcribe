@@ -43,7 +43,7 @@ build/ffmpeg/bin,https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/
 build/ffmpeg/bin,https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip,zip,win,*/bin/*
 # yt-dlp — dernière version stable (URL « latest » de GitHub)
 build/yt-dlp,https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux,auto,linux,yt-dlp_linux->yt-dlp
-build/yt-dlp,https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe,auto,win
+build/yt-dlp.exe,https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe,auto,win
 # whisper.cpp — binaires Windows officiels (whisper-cli.exe + DLL sous Release/)
 build/whisper,https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.6/whisper-bin-x64.zip,zip,win,Release/*
 # Linux : pas de binaire whisper-cli officiel publié — compilez whisper.cpp
