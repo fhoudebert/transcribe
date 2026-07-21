@@ -789,6 +789,12 @@ class Transcribe(tk.Tk):
                     code = proc.returncode
                     msg  = f"\n✘  {t('err_generic')} (code {code})"
                     self.after(0, self._log_line, msg)
+                    # 0xC0000135 = STATUS_DLL_NOT_FOUND : whisper-cli.exe
+                    # requiert le runtime Visual C++ x64 (MSVCP140.dll,
+                    # VCRUNTIME140*.dll, VCOMP140.dll).
+                    if code in (3221225781, -1073741515):
+                        self.after(0, self._log_line,
+                                   "ℹ  " + t("err_dll_hint"))
                     self.after(0, self._idle,
                                t("status_error", label=label))
                     self.after(0, messagebox.showerror,
