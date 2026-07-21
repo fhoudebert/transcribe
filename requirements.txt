@@ -51,6 +51,9 @@ networkx==3.6.1
 numpy==2.4.6
 onnxruntime==1.26.0
 packaging==26.2
+# pillow : conversion png→ico des icônes d'exe par PyInstaller
+# (compile_app.py:icon_args) ; utilisé uniquement à la compilation.
+pillow==12.3.0
 preshed==3.0.13
 protobuf==7.35.0
 pydantic==2.13.4

@@ -39,12 +39,8 @@
     "choice_new_file": "Nouveau fichier",
     "rec_title": "🎙  Enregistrement microphone",
     "rec_subtitle": "Enregistrement MP3 via ffmpeg",
-    "rec_backend": "Backend :",
-    "rec_wasapi": "WASAPI (recommandé)",
-    "rec_dshow": "DirectShow (legacy)",
     "rec_micro": "Micro :",
     "rec_enum": "(énumération…)",
-    "rec_wasapi_info": "ℹ  WASAPI utilise le microphone par défaut Windows\n   (Paramètres → Son → Entrée)",
     "rec_pulse_info": "ℹ  PulseAudio / PipeWire  ·  périphérique : default",
     "rec_lang_hint": " → -l whisper",
     "rec_ready": "Prêt à enregistrer.",
@@ -171,11 +167,12 @@
     "url_open_location": "📁  Ouvrir l'emplacement",
     "pre_filters_on": "Filtres actifs : ",
     "pre_filters_off": "Aucun filtre actif.",
-    "rec_done_unit": " Ko",
     "lbl_audio_lang": "Langue de l'audio : ",
     "lang_auto": "auto  Auto-détection",
     "lang_none": "—  Aucune traduction",
     "log_lang_detected": "Langue détectée : {name}",
     "err_no_target": "Aucune langue de traduction sélectionnée (« Aucune traduction »).",
-    "err_same_lang": "La langue source et la langue cible sont identiques : rien à traduire."
+    "err_same_lang": "La langue source et la langue cible sont identiques : rien à traduire.",
+    "rec_failed": "✘  Échec de l'enregistrement",
+    "err_dll_hint": "DLL manquante (0xC0000135) : installez le runtime Visual C++ x64 de Microsoft — https://aka.ms/vc/17/release/vc_redist.x64.exe — puis relancez."
 }

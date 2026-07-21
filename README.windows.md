@@ -13,6 +13,14 @@ laissant cochés le lanceur `py` et tcl/tk. Les machines qui ne font
 qu'*utiliser* `truchement.exe` compilé n'ont pas besoin de Python : le
 binaire embarque son interpréteur et la stdlib complète.
 
+**Sur toute machine utilisant transcribe** (même sans Python) : le
+runtime **Visual C++ x64** de Microsoft doit être présent —
+`whisper-cli.exe` et ses DLL (`ggml*.dll`) dépendent de `MSVCP140.dll`,
+`VCRUNTIME140*.dll` et `VCOMP140.dll`. S'il manque, whisper échoue avec
+le code 3221225781 (0xC0000135, « DLL introuvable »). Installation en un
+clic : <https://aka.ms/vc/17/release/vc_redist.x64.exe> (souvent déjà
+présent, apporté par d'autres logiciels).
+
 ## 1. Setup — `setupPython_and_download.bat`
 
 Double-clic (ou depuis un terminal) à la racine de la clé :

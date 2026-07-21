@@ -74,25 +74,11 @@ class RecorderWindow(tk.Toplevel):
 
         tk.Frame(self, height=1, bg=BORDER).pack(fill="x", padx=20, pady=10)
 
-        # ── Backend audio (Windows seulement) ──
+        # ── Périphérique de capture (Windows : DirectShow) ──
+        # NB : ffmpeg n'a PAS d'entrée « wasapi » — seul dshow existe
+        # sous Windows ; le micro par défaut est présélectionné après
+        # énumération (_enum_dshow).
         if IS_WINDOWS:
-            self._backend = tk.StringVar(value="wasapi")
-
-            brow = tk.Frame(self, bg=BG2)
-            brow.pack(padx=20, fill="x", pady=(0, 4))
-            tk.Label(brow, text=t("rec_backend"), bg=BG2, fg=FG2,
-                     font=FONT_UI).pack(side="left")
-            for val, lbl in [("wasapi", t("rec_wasapi")),
-                              ("dshow",  t("rec_dshow"))]:
-                tk.Radiobutton(
-                    brow, text=lbl, variable=self._backend, value=val,
-                    bg=BG2, fg=FG2, selectcolor=BG3,
-                    activebackground=BG2, activeforeground=FG,
-                    font=FONT_UI, cursor="hand2",
-                    command=self._on_backend_change,
-                ).pack(side="left", padx=(10, 0))
-
-            # Ligne dshow (masquée si WASAPI)
             self._dshow_frame = tk.Frame(self, bg=BG2)
             self._dshow_frame.pack(padx=20, fill="x", pady=(0, 2))
             tk.Label(self._dshow_frame, text=t("rec_micro"), bg=BG2, fg=FG2,
@@ -108,15 +94,6 @@ class RecorderWindow(tk.Toplevel):
                 self, text=t("rec_enum_progress"),
                 font=FONT_SMALL, bg=BG2, fg=FG2, anchor="w")
             self._dev_hint.pack(padx=20, anchor="w", pady=(0, 2))
-
-            # Info WASAPI
-            self._wasapi_info = tk.Label(
-                self,
-                text=t("rec_wasapi_info"),
-                font=FONT_SMALL, bg=BG2, fg=FG2, justify="left")
-            self._wasapi_info.pack(padx=20, anchor="w")
-
-            self._on_backend_change()   # affichage initial
 
         else:
             tk.Label(self,
@@ -193,20 +170,6 @@ class RecorderWindow(tk.Toplevel):
         self._btn_load.pack(pady=(6, 16), padx=20, fill="x")
         self._btn_load.config(state="disabled")
 
-    # ── Backend Windows ──────────────────────────────────────
-
-    def _on_backend_change(self):
-        if not IS_WINDOWS:
-            return
-        if self._backend.get() == "wasapi":
-            self._dshow_frame.pack_forget()
-            self._dev_hint.pack_forget()
-            self._wasapi_info.pack(padx=20, anchor="w")
-        else:
-            self._wasapi_info.pack_forget()
-            self._dshow_frame.pack(padx=20, fill="x", pady=(0, 2))
-            self._dev_hint.pack(padx=20, anchor="w", pady=(0, 2))
-
     def _enum_dshow(self):
         """Énumère les périphériques DirectShow en arrière-plan."""
         ffmpeg = self._parent._ffmpeg()
@@ -262,8 +225,8 @@ class RecorderWindow(tk.Toplevel):
         if not os.path.isfile(ffmpeg):
             ext = ".exe" if IS_WINDOWS else ""
             messagebox.showerror(
-                t("rec_ffmpeg_missing"),
-                f"build/ffmpeg/bin/ffmpeg{ext} introuvable.", parent=self)
+                t("err_file_not_found"),
+                t("rec_ffmpeg_missing", ext=ext), parent=self)
             return
 
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -273,24 +236,27 @@ class RecorderWindow(tk.Toplevel):
         base_out = ["-ar", "44100", "-ac", "1",
                     "-codec:a", "libmp3lame", "-q:a", "4",
                     self._tmp_file]
+        # -nostats : sans cela, les stats de progression rempliraient le
+        # PIPE stderr (jamais affiché) et finiraient par bloquer ffmpeg
+        # sur un enregistrement long. Les erreurs restent capturées et
+        # affichées par _watch en cas d'échec.
+        base_in = [ffmpeg, "-y", "-hide_banner", "-nostats",
+                   "-loglevel", "error"]
 
         if IS_WINDOWS:
-            if self._backend.get() == "wasapi":
-                cmd = [ffmpeg, "-y", "-f", "wasapi",
-                       "-i", "default"] + base_out
-            else:
-                dev = self._dev_var.get().strip()
-                if not dev:
-                    messagebox.showwarning(
-                        t("rec_no_device_title"),
-                        t("rec_no_device_msg"),
-                        parent=self)
-                    return
-                cmd = [ffmpeg, "-y", "-f", "dshow",
-                       "-i", f"audio={dev}"] + base_out
+            # ffmpeg n'a pas d'entrée « wasapi » : capture DirectShow.
+            dev = self._dev_var.get().strip()
+            if not dev or dev == t("rec_enum"):
+                messagebox.showwarning(
+                    t("rec_no_device_title"),
+                    t("rec_no_device_msg"),
+                    parent=self)
+                return
+            cmd = base_in + ["-f", "dshow",
+                             "-i", f"audio={dev}"] + base_out
         else:
-            cmd = [ffmpeg, "-y", "-f", "pulse",
-                   "-i", "default"] + base_out
+            cmd = base_in + ["-f", "pulse",
+                             "-i", "default"] + base_out
 
         try:
             self._proc = subprocess.Popen(
@@ -334,8 +300,17 @@ class RecorderWindow(tk.Toplevel):
         self._on_stopped()
 
     def _watch(self):
-        """Détecte si ffmpeg s'arrête inopinément."""
+        """Draine stderr (sinon le PIPE plein bloque ffmpeg) et détecte
+        un arrêt inopiné ; mémorise les dernières lignes pour diagnostic."""
+        self._last_err = []
         if self._proc:
+            try:
+                for line in self._proc.stderr:
+                    line = line.decode("utf-8", errors="replace").rstrip()
+                    if line:
+                        self._last_err = (self._last_err + [line])[-10:]
+            except Exception:
+                pass
             self._proc.wait()
         if self._running:
             self.after(0, self._stop)
@@ -372,8 +347,14 @@ class RecorderWindow(tk.Toplevel):
         size_kb = 0
         if self._tmp_file and os.path.isfile(self._tmp_file):
             size_kb = os.path.getsize(self._tmp_file) // 1024
-        self._status_var.set(
-            f"{t('rec_done')}{size_kb}{t('rec_done_unit')}")
+        if size_kb == 0:
+            # ffmpeg a échoué (périphérique invalide, occupé…)
+            self._status_var.set(t("rec_failed"))
+            err = "\n".join(getattr(self, "_last_err", [])[-6:])
+            if err:
+                messagebox.showerror(t("rec_failed"), err, parent=self)
+            return
+        self._status_var.set(t("rec_done", size=size_kb))
         for b in (self._btn_save, self._btn_tx, self._btn_load):
             b.config(state="normal")
 
@@ -434,8 +415,9 @@ class RecorderWindow(tk.Toplevel):
         if not self._tmp_file or not os.path.isfile(self._tmp_file):
             return
         self._parent.video_path.set(self._tmp_file)
-        self._parent._log_line(f"📂 Chargé : {self._tmp_file}")
-        self._status_var.set(t("rec_loaded"))
+        self._parent._log_line(t("rec_loaded", path=self._tmp_file))
+        self._status_var.set(
+            t("rec_loaded", path=os.path.basename(self._tmp_file)))
         self.destroy()
 
     # ── Fermeture ────────────────────────────────────────────

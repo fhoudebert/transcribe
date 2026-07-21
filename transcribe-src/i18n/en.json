@@ -39,12 +39,8 @@
     "choice_new_file": "New file",
     "rec_title": "🎙  Microphone recording",
     "rec_subtitle": "MP3 recording via ffmpeg",
-    "rec_backend": "Backend:",
-    "rec_wasapi": "WASAPI (recommended)",
-    "rec_dshow": "DirectShow (legacy)",
     "rec_micro": "Mic:",
     "rec_enum": "(enumerating…)",
-    "rec_wasapi_info": "ℹ  WASAPI uses the default Windows microphone\n   (Settings → Sound → Input)",
     "rec_pulse_info": "ℹ  PulseAudio / PipeWire  ·  device: default",
     "rec_lang_hint": " → -l whisper",
     "rec_ready": "Ready to record.",
@@ -171,11 +167,12 @@
     "url_open_location": "📁  Open location",
     "pre_filters_on": "Active filters: ",
     "pre_filters_off": "No active filter.",
-    "rec_done_unit": " KB",
     "lbl_audio_lang": "Audio language: ",
     "lang_auto": "auto  Auto-detect",
     "lang_none": "—  No translation",
     "log_lang_detected": "Detected language: {name}",
     "err_no_target": "No translation language selected (“No translation”).",
-    "err_same_lang": "Source and target languages are identical: nothing to translate."
+    "err_same_lang": "Source and target languages are identical: nothing to translate.",
+    "rec_failed": "✘  Recording failed",
+    "err_dll_hint": "Missing DLL (0xC0000135): install the Microsoft Visual C++ x64 runtime — https://aka.ms/vc/17/release/vc_redist.x64.exe — then retry."
 }
