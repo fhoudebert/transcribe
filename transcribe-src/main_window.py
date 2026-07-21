@@ -164,18 +164,17 @@ class Transcribe(tk.Tk):
         """
         Retourne l'interpréteur Python du venv portable.
 
-        L'application est portable : le venv est toujours présent sous
-          build/python/venv/  (relatif à root_dir / sys.executable.parent)
+        La clé est bi-OS : les DEUX venvs peuvent être présents côte à
+        côte (build/python/venv pour Linux/Mac, build\\python\\venv-windows
+        pour Windows). Ne tester que les candidats de l'OS courant —
+        sous Windows, build/python/venv/bin/python3 est un binaire ELF
+        Linux parfaitement visible sur l'exFAT : le lancer donnerait
+        [WinError 193] %1 n'est pas une application Win32 valide.
 
-        Ordre de recherche :
-          1. build/python/venv/bin/python3   (Linux/Mac — priorité absolue)
-          2. build/python/venv/bin/python    (alias Linux)
-          3. build/python/venv/Scripts/python.exe  (Windows venv)
-          4. sys.executable                  (dev sans frozen : venv courant)
-          5. python3 système                 (ultime fallback)
-
-        En mode développement (non-frozen), sys.executable est déjà le
-        python du venv actif — on le retourne directement.
+        Ordre de recherche (OS courant uniquement) :
+          Windows : venv-windows\\Scripts\\python.exe, venv\\Scripts\\python.exe
+          Linux/Mac : venv/bin/python3, venv/bin/python
+          puis sys.executable (dev non-frozen), puis python système.
         """
         # Racine = dossier du binaire (frozen) ou du script (dev)
         if getattr(sys, "frozen", False):
@@ -185,15 +184,19 @@ class Transcribe(tk.Tk):
                 "TRANSCRIBE_BASE_DIR",
                 os.path.dirname(os.path.abspath(__file__)))
 
-        # Candidats dans le venv portable, par ordre de préférence
-        candidates = (
-            os.path.join(root, "build", "python", "venv", "bin",
-                         "python3"),
-            os.path.join(root, "build", "python", "venv", "bin",
-                         "python"),
-            os.path.join(root, "build", "python", "venv", "Scripts",
-                         "python.exe"),   # Windows
-        )
+        # Candidats du venv portable, propres à l'OS courant
+        pyroot = os.path.join(root, "build", "python")
+        if IS_WINDOWS:
+            candidates = (
+                os.path.join(pyroot, "venv-windows", "Scripts",
+                             "python.exe"),
+                os.path.join(pyroot, "venv", "Scripts", "python.exe"),
+            )
+        else:
+            candidates = (
+                os.path.join(pyroot, "venv", "bin", "python3"),
+                os.path.join(pyroot, "venv", "bin", "python"),
+            )
         for p in candidates:
             if os.path.isfile(p):
                 return p
@@ -202,8 +205,11 @@ class Transcribe(tk.Tk):
         if not getattr(sys, "frozen", False):
             return sys.executable
 
-        # Dernier recours : python3 système (non recommandé en portabilité)
+        # Dernier recours : python système (non recommandé en portabilité)
         import shutil
+        if IS_WINDOWS:
+            return (shutil.which("python") or shutil.which("py")
+                    or "python")
         return shutil.which("python3") or shutil.which("python") or "python3"
 
     def _script(self, name: str) -> list[str]:
@@ -742,7 +748,7 @@ class Transcribe(tk.Tk):
         p = os.path.normpath(p)
         if not os.path.isfile(p):
             messagebox.showerror(t("err_file_not_found"),
-                                 t("err_file_not_found_msg") + p)
+                                 t("err_file_not_found_msg", path=p))
             return None
         self.video_path.set(p)
         return p
@@ -946,7 +952,7 @@ class Transcribe(tk.Tk):
         ffmpeg  = self._ffmpeg()
         if not os.path.isfile(ffprobe):
             messagebox.showerror(t("err_file_not_found"),
-                                 t("analyze_missing") + ffprobe)
+                                 t("analyze_missing", path=ffprobe))
             return
         self._busy(t("status_analyzing"))
         self._log_line(f"\n🔍  {t('btn_analyze')}…")
@@ -1115,16 +1121,17 @@ class Transcribe(tk.Tk):
         tgt_srt  = base + (".en.srt" if translated_en else ".srt")
         for candidate in (pre_base + ".en.srt", pre_base + ".srt"):
             if os.path.isfile(candidate):
-                self._log_line(t("log_rename") +
-                    f"{os.path.basename(candidate)} → {os.path.basename(tgt_srt)}")
+                self._log_line(t("log_rename",
+                    src=os.path.basename(candidate),
+                    dst=os.path.basename(tgt_srt)))
                 try:
                     if os.path.isfile(tgt_srt): os.remove(tgt_srt)
                     os.rename(candidate, tgt_srt)
                 except OSError as e:
-                    self._log_line(t("log_rename_failed") + str(e))
+                    self._log_line(t("log_rename_failed", err=str(e)))
                 break
         else:
-            self._log_line(t("log_wav_missing") + f"{pre_base}[.en].srt")
+            self._log_line(t("log_wav_missing", path=f"{pre_base}[.en].srt"))
         try:
             os.remove(wav_pre)
             self._log_line(t("log_wav_deleted"))
@@ -1167,7 +1174,7 @@ class Transcribe(tk.Tk):
             from_lang = self._resolved_src_lang() or "en"
         if not os.path.isfile(srt):
             messagebox.showwarning(t("err_srt_missing"),
-                                   t("err_srt_missing_msg") + base)
+                                   t("err_srt_missing_msg", base=base))
             return
         if from_lang == lang:
             messagebox.showinfo(t("btn_translate").replace("\n", " "),
@@ -1312,7 +1319,7 @@ class Transcribe(tk.Tk):
         lang_name  = LANG_NAMES.get(lang_code_str, lang_code_str)
         audio_only = self._is_audio_only(video)
 
-        self._log_line(t("log_dual_header") + lang_code_str.upper() + ")")
+        self._log_line(t("log_dual_header", lang=lang_code_str.upper()))
         if audio_only:
             self._log_line(t("log_dual_audio_only"))
 

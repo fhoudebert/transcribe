@@ -225,8 +225,8 @@ class RecorderWindow(tk.Toplevel):
         if not os.path.isfile(ffmpeg):
             ext = ".exe" if IS_WINDOWS else ""
             messagebox.showerror(
-                t("rec_ffmpeg_missing"),
-                f"build/ffmpeg/bin/ffmpeg{ext} introuvable.", parent=self)
+                t("err_file_not_found"),
+                t("rec_ffmpeg_missing", ext=ext), parent=self)
             return
 
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -415,8 +415,9 @@ class RecorderWindow(tk.Toplevel):
         if not self._tmp_file or not os.path.isfile(self._tmp_file):
             return
         self._parent.video_path.set(self._tmp_file)
-        self._parent._log_line(f"📂 Chargé : {self._tmp_file}")
-        self._status_var.set(t("rec_loaded"))
+        self._parent._log_line(t("rec_loaded", path=self._tmp_file))
+        self._status_var.set(
+            t("rec_loaded", path=os.path.basename(self._tmp_file)))
         self.destroy()
 
     # ── Fermeture ────────────────────────────────────────────
