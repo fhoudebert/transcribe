@@ -15,9 +15,15 @@ from tkinter import ttk, filedialog, messagebox
 
 from app_config import (
     IS_WINDOWS, NO_WINDOW,
-    MODELS, TARGET_LANGUAGES, LANG_NAMES, ISO_639_2,
+    MODELS, TARGET_LANGUAGES, SOURCE_LANGUAGES, LANG_NAMES, ISO_639_2,
+    AUTO_LANG, NO_TRANSLATION,
     lang_label, lang_code,
+    load_settings, save_settings,
 )
+
+# Ligne stderr de whisper-cli en mode -l auto :
+#   "whisper_full_with_state: auto-detected language: it (p = 0.98…)"
+_DETECT_RE = re.compile(r"auto-detected language:\s*([a-z]{2,3})")
 from app_styles import (
     BG, BG2, BG3, BG4, ACCENT, GREEN, WARN, DANGER, TEAL,
     FG, FG2, BORDER,
@@ -42,8 +48,9 @@ class Transcribe(tk.Tk):
 
         self.video_path    = tk.StringVar()
         self.model_key     = tk.StringVar(value="medium")  # code du modèle
-        self.to_lang       = tk.StringVar(value="fr")
-        self.from_lang     = "en"
+        self.src_lang      = tk.StringVar(value=AUTO_LANG)  # langue de l'audio (-l whisper)
+        self.to_lang       = tk.StringVar(value="fr")       # langue de traduction (argos)
+        self._detected_lang: str | None = None              # renseignée par whisper -l auto
         self.pre_loudnorm  = tk.BooleanVar(value=True)
         self.pre_denoise   = tk.BooleanVar(value=False)
         self.pre_voiceband = tk.BooleanVar(value=False)
@@ -53,6 +60,13 @@ class Transcribe(tk.Tk):
         self.root_dir = os.environ.get(
             "TRANSCRIBE_BASE_DIR",
             os.path.dirname(os.path.abspath(__file__)))
+
+        # Préférences persistées (settings.json à la racine)
+        _s = load_settings(self.root_dir)
+        if _s.get("src_lang") in SOURCE_LANGUAGES:
+            self.src_lang.set(_s["src_lang"])
+        if _s.get("target_lang") in [NO_TRANSLATION] + TARGET_LANGUAGES:
+            self.to_lang.set(_s["target_lang"])
 
         self._btn_translate = None
         self._btn_include   = None
@@ -547,19 +561,35 @@ class Transcribe(tk.Tk):
 
         # ④ Langue
         section(body, t("sec_lang"))
+
+        # — Langue de la source audio (guide le -l de whisper)
+        srow = tk.Frame(body, bg=BG)
+        srow.pack(fill="x", pady=(0,2), **pad)
+        tk.Label(srow, text=t("lbl_audio_lang"), bg=BG, fg=FG2,
+                 font=FONT_UI).pack(side="left")
+        self._src_cb = ttk.Combobox(
+            srow, textvariable=self.src_lang,
+            values=[self._lang_display(c) for c in SOURCE_LANGUAGES],
+            width=20, state="readonly")
+        self._src_cb.pack(side="left", padx=(8,0))
+        self._src_cb.bind("<<ComboboxSelected>>", self._on_src_lang_select)
+        self.src_lang.set(self._lang_display(
+            self._lang_from_display(self.src_lang.get())))
+
+        # — Langue de traduction cible (étape argos)
         lrow = tk.Frame(body, bg=BG)
         lrow.pack(fill="x", pady=(0,2), **pad)
         tk.Label(lrow, text=t("lbl_translate_to"), bg=BG, fg=FG2,
                  font=FONT_UI).pack(side="left")
         self._lang_cb = ttk.Combobox(
             lrow, textvariable=self.to_lang,
-            values=[lang_label(c) for c in TARGET_LANGUAGES],
+            values=[self._lang_display(c)
+                    for c in [NO_TRANSLATION] + TARGET_LANGUAGES],
             width=20, state="readonly")
         self._lang_cb.pack(side="left", padx=(8,0))
         self._lang_cb.bind("<<ComboboxSelected>>", self._on_lang_select)
-        self.to_lang.set(lang_label(lang_code(self.to_lang.get())
-                                    if len(self.to_lang.get()) <= 3
-                                    else self.to_lang.get()))
+        self.to_lang.set(self._lang_display(
+            self._lang_from_display(self.to_lang.get())))
 
         hdivider(body)
 
@@ -632,11 +662,39 @@ class Transcribe(tk.Tk):
             self._filter_info.config(
                 text=f"  {t('pre_filters_off')}", fg=FG2)
 
+    def _lang_display(self, code: str) -> str:
+        """Libellé combobox pour un code, y compris auto / none."""
+        if code == AUTO_LANG:      return t("lang_auto")
+        if code == NO_TRANSLATION: return t("lang_none")
+        return lang_label(code)
+
+    def _lang_from_display(self, label: str) -> str:
+        """Code depuis un libellé combobox (ou un code déjà nu)."""
+        if label == t("lang_auto"):  return AUTO_LANG
+        if label == t("lang_none"):  return NO_TRANSLATION
+        return lang_code(label)
+
     def _on_lang_select(self, _=None):
-        self.to_lang.set(lang_code(self.to_lang.get()))
+        self.to_lang.set(self._lang_from_display(self.to_lang.get()))
+        save_settings(self.root_dir, target_lang=self._get_lang())
+
+    def _on_src_lang_select(self, _=None):
+        self.src_lang.set(self._lang_from_display(self.src_lang.get()))
+        self._detected_lang = None   # nouveau choix ⇒ oublie la détection
+        save_settings(self.root_dir, src_lang=self._get_src_lang())
 
     def _get_lang(self) -> str:
-        return lang_code(self.to_lang.get())
+        return self._lang_from_display(self.to_lang.get())
+
+    def _get_src_lang(self) -> str:
+        return self._lang_from_display(self.src_lang.get())
+
+    def _resolved_src_lang(self) -> str | None:
+        """Langue source effective : choix explicite, sinon détection whisper."""
+        src = self._get_src_lang()
+        if src != AUTO_LANG:
+            return src
+        return self._detected_lang
 
     def _log_line(self, txt: str):
         self._log.configure(state="normal")
@@ -712,7 +770,15 @@ class Transcribe(tk.Tk):
                     text=True, encoding="utf-8", errors="replace",
                     cwd=_cwd, creationflags=NO_WINDOW)
                 for line in proc.stdout:
-                    self.after(0, self._log_line, line.rstrip())
+                    txt = line.rstrip()
+                    m = _DETECT_RE.search(txt)
+                    if m:
+                        code = m.group(1)
+                        self._detected_lang = code
+                        self.after(0, self._log_line,
+                                   "🌐 " + t("log_lang_detected",
+                                             name=LANG_NAMES.get(code, code)))
+                    self.after(0, self._log_line, txt)
                 proc.wait()
                 if proc.returncode == 0:
                     self.after(0, self._log_line,
@@ -780,8 +846,10 @@ class Transcribe(tk.Tk):
     def _run_audio(self):
         video = self._validate()
         if not video: return
-        lang = self._get_lang()   # langue cible = -l passé à whisper
-        cmd  = self._script("audio2en") + [video, self._model(), lang]
+        src = self._get_src_lang()   # langue de l'audio = -l passé à whisper
+        cmd = self._script("audio2en") + [video, self._model()]
+        if src != AUTO_LANG:
+            cmd.append(src)          # omis ⇒ auto-détection whisper
         self._run_cmd(cmd, t("btn_audio").replace("\n", " "))
 
 
@@ -1008,28 +1076,39 @@ class Transcribe(tk.Tk):
                     self.after(0, self._idle)
                     return
                 srt_base = wp[:-4]
+                src   = self._get_src_lang()
+                to_en = (self._get_lang() == "en")   # -tr ne sait traduire que vers en
                 # Sur Windows, subprocess.Popen (via CreateProcess)
                 # quote automatiquement les éléments contenant des espaces.
                 # Ne jamais entourer les chemins de guillemets dans la liste.
                 cmd_w = [wb,
                          "-m", wm,
-                         "-f", os.path.normpath(wp),
-                         "-tr",
-                         "-osrt",
-                         "-of", os.path.normpath(srt_base)]
+                         "-f", os.path.normpath(wp)]
+                if src != AUTO_LANG:
+                    cmd_w += ["-l", src]
+                if to_en:
+                    cmd_w += ["-tr"]
+                cmd_w += ["-osrt",
+                          "-of", os.path.normpath(srt_base)]
                 self._run_cmd(cmd_w, t("btn_whisper").replace("\n"," "),
-                              on_success=lambda: self._after_whisper_pre(wp, b))
+                              on_success=lambda: self._after_whisper_pre(
+                                  wp, b, to_en))
 
             self._run_cmd(cmd_pre, t("sec_preproc").split("(")[0].strip(),
                           on_success=after_pre)
         else:
-            cmd = self._script("soustitre") + [os.path.normpath(video), self._model()]
+            src   = self._get_src_lang()
+            to_en = (self._get_lang() == "en")
+            cmd = self._script("soustitre") + [
+                os.path.normpath(video), self._model(),
+                "yes" if to_en else "no", src]
             self._run_cmd(cmd, t("btn_whisper").replace("\n"," "),
                           on_success=self._after_whisper)
 
-    def _after_whisper_pre(self, wav_pre: str, base: str):
+    def _after_whisper_pre(self, wav_pre: str, base: str,
+                           translated_en: bool = True):
         pre_base = os.path.splitext(wav_pre)[0]
-        tgt_srt  = base + ".en.srt"
+        tgt_srt  = base + (".en.srt" if translated_en else ".srt")
         for candidate in (pre_base + ".en.srt", pre_base + ".srt"):
             if os.path.isfile(candidate):
                 self._log_line(t("log_rename") +
@@ -1050,28 +1129,47 @@ class Transcribe(tk.Tk):
         self._after_whisper()
 
     def _after_whisper(self):
-        self._show_translate_btn()
-        ChoiceDialog(self,
-            title=t("dlg_subtitles_title"),
-            message=t("dlg_subtitles_msg"),
-            choices=[
+        if self._get_lang() == NO_TRANSLATION:
+            choices = [
+                (t("choice_mkv_direct"), self._run_include),
+                (t("choice_quit"),       self.destroy),
+            ]
+        else:
+            self._show_translate_btn()
+            choices = [
                 (t("choice_translate"),  self._run_translate),
                 (t("choice_mkv_direct"), self._run_include),
                 (t("choice_quit"),       self.destroy),
-            ])
+            ]
+        ChoiceDialog(self,
+            title=t("dlg_subtitles_title"),
+            message=t("dlg_subtitles_msg"),
+            choices=choices)
 
     def _run_translate(self):
         video = self._validate()
         if not video: return
+        lang = self._get_lang()
+        if lang == NO_TRANSLATION:
+            messagebox.showinfo(t("sec_lang").split(" ", 1)[-1],
+                                t("err_no_target"))
+            return
         base = os.path.splitext(video)[0]
-        srt  = base + ".en.srt"
-        if not os.path.isfile(srt): srt = base + ".srt"
+        # SRT anglais (whisper -tr) prioritaire, sinon SRT langue source
+        srt       = base + ".en.srt"
+        from_lang = "en"
+        if not os.path.isfile(srt):
+            srt = base + ".srt"
+            from_lang = self._resolved_src_lang() or "en"
         if not os.path.isfile(srt):
             messagebox.showwarning(t("err_srt_missing"),
                                    t("err_srt_missing_msg") + base)
             return
-        lang = self._get_lang()
-        cmd  = self._script("traduire-srt") + [srt, self.from_lang, lang]
+        if from_lang == lang:
+            messagebox.showinfo(t("btn_translate").replace("\n", " "),
+                                t("err_same_lang"))
+            return
+        cmd  = self._script("traduire-srt") + [srt, from_lang, lang]
         self._run_cmd(cmd, t("btn_translate").replace("\n"," "),
                       on_success=self._after_translate)
 
@@ -1091,7 +1189,10 @@ class Transcribe(tk.Tk):
         row.pack(fill="x", pady=(6,0))
         tk.Label(row, text=t("choice_other_lang"), bg=BG2, fg=FG2,
                  font=FONT_UI).pack(side="left")
-        var = tk.StringVar(value=lang_label(self._get_lang()))
+        cur = self._get_lang()
+        if cur not in TARGET_LANGUAGES:
+            cur = "fr"
+        var = tk.StringVar(value=lang_label(cur))
         cb  = ttk.Combobox(row, textvariable=var,
                            values=[lang_label(c) for c in TARGET_LANGUAGES],
                            width=18, state="readonly")
@@ -1110,6 +1211,8 @@ class Transcribe(tk.Tk):
         if not video: return
         base    = os.path.splitext(video)[0]
         lang    = self._get_lang()
+        if lang == NO_TRANSLATION:   # transcription seule ⇒ langue source
+            lang = self._resolved_src_lang() or "und"
         srt_en  = base + ".en.srt"
         srt_tgt = base + f".{lang}.srt"
         srt_nat = base + ".srt"
@@ -1169,6 +1272,8 @@ class Transcribe(tk.Tk):
         Détecte si la source est audio-only pour adapter les -map.
         """
         lang_str   = self._get_lang()
+        if lang_str == NO_TRANSLATION:
+            lang_str = self._resolved_src_lang() or "und"
         lang3      = ISO_639_2.get(lang_str, lang_str)
         audio_only = self._is_audio_only(video)
 

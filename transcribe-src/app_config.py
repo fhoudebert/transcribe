@@ -57,3 +57,34 @@ def lang_label(code: str) -> str:
 def lang_code(label_or_code: str) -> str:
     """Extrait le code court depuis 'fr  Français' ou 'fr'."""
     return label_or_code.strip().split()[0]
+
+# ── Langues source pour la transcription whisper ──────────────
+AUTO_LANG = "auto"          # auto-détection whisper (-l omis / -l auto)
+NO_TRANSLATION = "none"     # transcription seule, pas d'étape argos
+SOURCE_LANGUAGES: list[str] = [AUTO_LANG] + ALL_LANGUAGES
+
+# ── Préférences utilisateur (settings.json à la racine) ──────
+import json as _json
+import os as _os
+
+def _settings_path(root_dir: str) -> str:
+    return _os.path.join(root_dir, "settings.json")
+
+def load_settings(root_dir: str) -> dict:
+    """Charge settings.json (dict vide si absent/corrompu)."""
+    try:
+        with open(_settings_path(root_dir), "r", encoding="utf-8") as f:
+            data = _json.load(f)
+            return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+def save_settings(root_dir: str, **values) -> None:
+    """Fusionne et persiste des clés dans settings.json (best-effort)."""
+    data = load_settings(root_dir)
+    data.update(values)
+    try:
+        with open(_settings_path(root_dir), "w", encoding="utf-8") as f:
+            _json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass

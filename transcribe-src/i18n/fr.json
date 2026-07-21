@@ -117,7 +117,7 @@
     "rec_no_device_msg": "Sélectionnez un micro ou passez en WASAPI.",
     "sec_actions": "⑥ Traitements",
     "sec_file": "① Fichier vidéo / audio",
-    "sec_lang": "④ Langue source(transcription) ou cible (traduction)",
+    "sec_lang": "④ Langues — audio source & traduction",
     "sec_log": "⑦ Journal d'exécution",
     "sec_mkv": "⑤ Options MKV",
     "sec_model": "② Modèle Whisper",
@@ -171,5 +171,11 @@
     "url_open_location": "📁  Ouvrir l'emplacement",
     "pre_filters_on": "Filtres actifs : ",
     "pre_filters_off": "Aucun filtre actif.",
-    "rec_done_unit": " Ko"
+    "rec_done_unit": " Ko",
+    "lbl_audio_lang": "Langue de l'audio : ",
+    "lang_auto": "auto  Auto-détection",
+    "lang_none": "—  Aucune traduction",
+    "log_lang_detected": "Langue détectée : {name}",
+    "err_no_target": "Aucune langue de traduction sélectionnée (« Aucune traduction »).",
+    "err_same_lang": "La langue source et la langue cible sont identiques : rien à traduire."
 }
