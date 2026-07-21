@@ -1,9 +1,11 @@
 #!/bin/bash
 # ============================================================
 #  soustitre.sh  —  Transcription audio -> SRT
-#  Usage : soustitre.sh <fichier> [base|medium|large] [yes|no]
+#  Usage : soustitre.sh <fichier> [base|medium|large] [yes|no] [src_lang|auto]
 #    3e argument : yes = traduit vers anglais (defaut)
-#                  no  = transcrit dans la langue detectee
+#                  no  = transcrit dans la langue source
+#    4e argument : langue de l'audio passee a whisper via -l
+#                  auto (defaut) = auto-detection whisper
 # ============================================================
 set -euo pipefail
 
@@ -15,7 +17,8 @@ WHISPER_BIN="$WHISPER_DIR/whisper-cli"
 
 INPUT="${1:-}"
 MODEL_NAME="${2:-medium}"
-TRANSLATE="${3:-yes}"   # yes = -tr (→ anglais)  |  no = langue détectée
+TRANSLATE="${3:-yes}"   # yes = -tr (→ anglais)  |  no = langue source
+SRC_LANG="${4:-auto}"   # auto | fr | en | it | …  (-l whisper)
 
 MODEL="$WHISPER_DIR/models/ggml-${MODEL_NAME}.bin"
 
@@ -47,6 +50,13 @@ fi
 echo "Fichier  : $INPUT"
 echo "Modèle   : $MODEL_NAME"
 echo "Mode     : $LABEL"
+echo "Lang src : $SRC_LANG"
+
+# Langue source explicite → -l ; auto → whisper détecte
+LANG_ARGS=()
+if [ "$SRC_LANG" != "auto" ]; then
+    LANG_ARGS=(-l "$SRC_LANG")
+fi
 
 # ── 1. Extraction audio ──────────────────────────────────────
 echo ""
@@ -66,6 +76,7 @@ if [ "$TRANSLATE" = "yes" ]; then
     "$WHISPER_BIN" \
       -m "$MODEL" \
       -f "$WAV_FILE" \
+      "${LANG_ARGS[@]}" \
       -tr \
       -osrt \
       -of "$DIR/output"
@@ -73,6 +84,7 @@ else
     "$WHISPER_BIN" \
       -m "$MODEL" \
       -f "$WAV_FILE" \
+      "${LANG_ARGS[@]}" \
       -osrt \
       -of "$DIR/output"
 fi

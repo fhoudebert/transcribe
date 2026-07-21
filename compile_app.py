@@ -47,6 +47,10 @@ APPS: dict[str, dict] = {
         "icon": os.path.join("assets", "icon.png"),
         "excludes": [],
         "add_data": [("traduire-srt.py", "."), ("assets", "assets")],
+        # Fichiers copiés tels quels du srcdir vers la racine au déploiement :
+        # traduire-srt.py est exécuté par le python du venv depuis la racine
+        # (<racine>/traduire-srt.py), pas depuis le bundle PyInstaller.
+        "deploy_files": ["traduire-srt.py"],
     },
 }
 
@@ -162,6 +166,10 @@ def main(argv: list[str]) -> int:
         os.chmod(target, 0o755)
     deploy_dir(os.path.join(srcdir, "assets"), os.path.join(APP_ROOT, "assets"))
     deploy_dir(os.path.join(srcdir, "i18n"), os.path.join(APP_ROOT, "i18n"))
+    for fname in cfg.get("deploy_files", []):
+        shutil.copy2(os.path.join(srcdir, fname),
+                     os.path.join(APP_ROOT, fname))
+        print(f"Déployé à la racine : {fname}")
 
     print(f"Compilation terminée avec succès : {target}")
     return 0

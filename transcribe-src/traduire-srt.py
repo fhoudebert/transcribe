@@ -18,6 +18,34 @@ Dépendances :
 import sys
 import re
 import os
+import faulthandler
+
+# En cas de crash natif (SIGSEGV dans torch/ctranslate2…), affiche la pile
+# Python fautive au lieu d'un simple « code -11 » dans le journal de l'IHM.
+faulthandler.enable()
+
+# ─────────────────────────────────────────────
+#  Environnement d'exécution autonome (clé USB)
+# ─────────────────────────────────────────────
+
+# Paquets argos de l'application, comme à l'installation par
+# setup_venv_lang.sh : cherchés à côté du script (déployé à la racine),
+# sinon au niveau supérieur (exécution depuis transcribe-src en dev).
+_HERE = os.path.dirname(os.path.abspath(__file__))
+for _root in (_HERE, os.path.dirname(_HERE)):
+    _pkg = os.path.join(_root, "build", "argos-data", "packages")
+    if os.path.isdir(_pkg):
+        os.environ.setdefault("ARGOS_PACKAGES_DIR", _pkg)
+        os.environ.setdefault("ARGOS_TRANSLATE_PACKAGE_DIR", _pkg)  # alias legacy
+        break
+
+# Application hors-ligne, traduction CPU : ne jamais initialiser CUDA.
+# Le chargement du modèle (mwt/spacy) importe torch ; si torch interroge un
+# pilote NVIDIA qui ne correspond pas aux roues cuda du venv, l'init peut
+# provoquer un SIGSEGV. CUDA_VISIBLE_DEVICES vide ⇒ torch répond « pas de
+# GPU » sans toucher au pilote.
+os.environ.setdefault("ARGOS_DEVICE_TYPE", "cpu")
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 # ─────────────────────────────────────────────
 #  Constantes

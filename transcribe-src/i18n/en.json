@@ -117,7 +117,7 @@
     "rec_no_device_msg": "Select a microphone or switch to WASAPI.",
     "sec_actions": "⑥ Processing",
     "sec_file": "① Video / audio file",
-    "sec_lang": "④ Target language (translation) or source language (transcription)",
+    "sec_lang": "④ Languages — source audio & translation",
     "sec_log": "⑦ Execution log",
     "sec_mkv": "⑤ MKV options",
     "sec_model": "② Whisper model",
@@ -171,5 +171,11 @@
     "url_open_location": "📁  Open location",
     "pre_filters_on": "Active filters: ",
     "pre_filters_off": "No active filter.",
-    "rec_done_unit": " KB"
+    "rec_done_unit": " KB",
+    "lbl_audio_lang": "Audio language: ",
+    "lang_auto": "auto  Auto-detect",
+    "lang_none": "—  No translation",
+    "log_lang_detected": "Detected language: {name}",
+    "err_no_target": "No translation language selected (“No translation”).",
+    "err_same_lang": "Source and target languages are identical: nothing to translate."
 }
