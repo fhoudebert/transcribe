@@ -1,0 +1,63 @@
+# Download-assistant – fichier de téléchargements
+# (lu par download-assistant, ou par le repli shell download_from_csv.sh)
+#
+# NOTE : les paquets de traduction Argos Translate ne passent PAS par ce
+# fichier — ils sont installés directement sur la clé (build/argos-data/
+# packages) par setup_venv_lang.sh, via argospm avec ARGOS_PACKAGES_DIR.
+#
+# Format : destination,url[,format]
+#
+# Colonne 3 – format (optionnel) :
+#   vide ou "auto" → détection par extension du fichier
+#   zip            → forcer extraction ZIP
+#   7z / 7zip      → forcer extraction 7-Zip
+#   tar.gz / tgz   → forcer extraction TAR+GZIP
+#   tar.bz2 / tbz2 → forcer extraction TAR+BZIP2
+#   tar.xz  / txz  → forcer extraction TAR+XZ
+#   gz             → décompresser un seul fichier .gz
+#   no             → ne pas extraire même si extension d'archive
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# Modèles Whisper.cpp  –  fichiers .bin simples (pas d'extraction)
+# Source : https://huggingface.co/ggerganov/whisper.cpp
+# ─────────────────────────────────────────────────────────────────────────────
+build/whisper/models,https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
+build/whisper/models,https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin
+build/whisper/models,https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q8_0.bin
+# support linguistique étendu, >=32 Go RAM
+# build/whisper/models,https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin
+
+# ─────────────────────────────────────────────────────────────────────────────
+# binaires pour transcribe : ffmpeg, whisper.cpp, yt-dlp
+# ─────────────────────────────────────────────────────────────────────────────
+#build/ffmpeg/bin,https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-lgpl.tar.xz
+#build/dic/bin,https://github.com/fhoudebert/transcribe/releases/download/latest/ffmpeg-master-latest-linux64-lgpl.tar.xz
+#build/yt-dlp,https://github.com/yt-dlp/yt-dlp/releases/download/2026.06.09/yt-dlp_linux.zip
+#build/whisper,https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.6/whisper-bin-x64.zip
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Monolingual dictionaries for truchement
+# ─────────────────────────────────────────────────────────────────────────────
+#build/dic,https://www.mobileread.com/forums/attachment.php?s=af2a6bcb99dff2c57ac1414fc60714b4&attachmentid=215270&d=1745649972
+#build/dic,https://github.com/fhoudebert/transcribe/releases/download/v1.0/dic-fr.zip,zip
+build/dic,https://github.com/fhoudebert/transcribe/releases/download/dic/es-es.db
+build/dic,https://github.com/fhoudebert/transcribe/releases/download/dic/en-en.db
+build/dic,https://github.com/fhoudebert/transcribe/releases/download/dic/fr-fr.db
+build/dic,https://github.com/fhoudebert/transcribe/releases/download/dic/it-it.db
+build/dic,https://github.com/fhoudebert/transcribe/releases/download/dic/de-de.db
+build/dic,https://github.com/fhoudebert/transcribe/releases/download/dic/pt-pt.db
+#build/dic,https://github.com/fhoudebert/transcribe/releases/download/dic/ru-ru.db
+#build/dic,https://github.com/fhoudebert/transcribe/releases/download/dic/ro-ro.db
+#build/dic,https://github.com/fhoudebert/transcribe/releases/download/dic/da-da.db
+#build/dic,https://github.com/fhoudebert/transcribe/releases/download/dic/el-el.db
+#build/dic,https://github.com/fhoudebert/transcribe/releases/download/dic/ja-ja.db
+#build/dic,https://github.com/fhoudebert/transcribe/releases/download/dic/tr-tr.db
+#build/dic,https://github.com/fhoudebert/transcribe/releases/download/dic/sv-sv.db
+#build/dic,https://github.com/fhoudebert/transcribe/releases/download/dic/zh-zh.db
+#build/dic,https://github.com/fhoudebert/transcribe/releases/download/dic/da-da.db	
+
+
+
+
+
