@@ -63,5 +63,10 @@ echo "📦 Déploiement à la racine de l'application..."
 install -m 0755 "$SCRIPT_DIR/transcribe-src/dist/transcribe" "$SCRIPT_DIR/transcribe"
 deploy_dir "$SCRIPT_DIR/transcribe-src/assets" "$SCRIPT_DIR/assets"
 deploy_dir "$SCRIPT_DIR/transcribe-src/i18n"   "$SCRIPT_DIR/i18n"
+# traduire-srt.py est exécuté par le python du venv depuis la racine
+# (<racine>/traduire-srt.py), pas depuis le bundle PyInstaller : il doit
+# donc être déployé à côté du binaire.
+install -m 0644 "$SCRIPT_DIR/transcribe-src/traduire-srt.py" "$SCRIPT_DIR/traduire-srt.py"
+echo "   → traduire-srt.py déployé à la racine"
 
 echo "🎉 Compilation terminée avec succès : $SCRIPT_DIR/transcribe"
