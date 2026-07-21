@@ -24,6 +24,15 @@ import faulthandler
 # Python fautive au lieu d'un simple « code -11 » dans le journal de l'IHM.
 faulthandler.enable()
 
+# Sortie UTF-8 quelle que soit la locale : le journal de l'IHM lit en
+# UTF-8, or sous Windows un stdout redirigé (PIPE) est encodé en cp1252
+# → UnicodeEncodeError sur « ▶ », « → », etc.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # ─────────────────────────────────────────────
 #  Environnement d'exécution autonome (clé USB)
 # ─────────────────────────────────────────────
