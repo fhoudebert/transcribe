@@ -559,33 +559,31 @@ class Transcribe(tk.Tk):
 
         hdivider(body)
 
-        # ④ Langue
+        # ④ Langue — source audio et cible de traduction sur une ligne
         section(body, t("sec_lang"))
+        lrow = tk.Frame(body, bg=BG)
+        lrow.pack(fill="x", pady=(0,2), **pad)
 
         # — Langue de la source audio (guide le -l de whisper)
-        srow = tk.Frame(body, bg=BG)
-        srow.pack(fill="x", pady=(0,2), **pad)
-        tk.Label(srow, text=t("lbl_audio_lang"), bg=BG, fg=FG2,
+        tk.Label(lrow, text=t("lbl_audio_lang"), bg=BG, fg=FG2,
                  font=FONT_UI).pack(side="left")
         self._src_cb = ttk.Combobox(
-            srow, textvariable=self.src_lang,
+            lrow, textvariable=self.src_lang,
             values=[self._lang_display(c) for c in SOURCE_LANGUAGES],
-            width=20, state="readonly")
-        self._src_cb.pack(side="left", padx=(8,0))
+            width=18, state="readonly")
+        self._src_cb.pack(side="left", padx=(8,18))
         self._src_cb.bind("<<ComboboxSelected>>", self._on_src_lang_select)
         self.src_lang.set(self._lang_display(
             self._lang_from_display(self.src_lang.get())))
 
         # — Langue de traduction cible (étape argos)
-        lrow = tk.Frame(body, bg=BG)
-        lrow.pack(fill="x", pady=(0,2), **pad)
         tk.Label(lrow, text=t("lbl_translate_to"), bg=BG, fg=FG2,
                  font=FONT_UI).pack(side="left")
         self._lang_cb = ttk.Combobox(
             lrow, textvariable=self.to_lang,
             values=[self._lang_display(c)
                     for c in [NO_TRANSLATION] + TARGET_LANGUAGES],
-            width=20, state="readonly")
+            width=18, state="readonly")
         self._lang_cb.pack(side="left", padx=(8,0))
         self._lang_cb.bind("<<ComboboxSelected>>", self._on_lang_select)
         self.to_lang.set(self._lang_display(

@@ -29,11 +29,27 @@ build/whisper/models,https://huggingface.co/ggerganov/whisper.cpp/resolve/main/g
 
 # ─────────────────────────────────────────────────────────────────────────────
 # binaires pour transcribe : ffmpeg, whisper.cpp, yt-dlp
+#
+# Colonnes étendues : destination,url,format,os,move
+#   os   : linux | win | all — ligne traitée seulement sur l'OS correspondant
+#          (surcharge : CSV_OS=win pour préparer une clé Windows depuis Linux)
+#   move : après extraction, motifs déplacés/renommés à la racine de la
+#          destination (aplatit les dossiers enveloppe, chmod +x, nettoyage)
+#   NB  : ces colonnes sont gérées par download_from_csv.sh / .py ; le binaire
+#         download-assistant, s'il est présent, ne les connaît pas encore.
 # ─────────────────────────────────────────────────────────────────────────────
-#build/ffmpeg/bin,https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-lgpl.tar.xz
-#build/dic/bin,https://github.com/fhoudebert/transcribe/releases/download/latest/ffmpeg-master-latest-linux64-lgpl.tar.xz
-#build/yt-dlp,https://github.com/yt-dlp/yt-dlp/releases/download/2026.06.09/yt-dlp_linux.zip
-#build/whisper,https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.6/whisper-bin-x64.zip
+# ffmpeg + ffprobe — builds BtbN « master latest » LGPL
+build/ffmpeg/bin,https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-lgpl.tar.xz,tar.xz,linux,*/bin/*
+build/ffmpeg/bin,https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip,zip,win,*/bin/*
+# yt-dlp — dernière version stable (URL « latest » de GitHub)
+build/yt-dlp,https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux,auto,linux,yt-dlp_linux->yt-dlp
+build/yt-dlp,https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe,auto,win
+# whisper.cpp — binaires Windows officiels (whisper-cli.exe + DLL sous Release/)
+build/whisper,https://github.com/ggml-org/whisper.cpp/releases/download/v1.8.6/whisper-bin-x64.zip,zip,win,Release/*
+# Linux : pas de binaire whisper-cli officiel publié — compilez whisper.cpp
+# (cmake) et copiez whisper-cli dans build/whisper/, ou hébergez votre propre
+# build sur les releases du dépôt puis décommentez, ex. :
+#build/whisper,https://github.com/fhoudebert/transcribe/releases/download/latest/whisper-bin-linux64.tar.xz,tar.xz,linux,*/whisper-cli
 
 
 # ─────────────────────────────────────────────────────────────────────────────
