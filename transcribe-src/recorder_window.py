@@ -174,6 +174,8 @@ class RecorderWindow(tk.Toplevel):
         """Énumère les périphériques DirectShow en arrière-plan."""
         ffmpeg = self._parent._ffmpeg()
         if not os.path.isfile(ffmpeg):
+            self.after(0, self._parent._log_line,
+                       f"⚠  dshow : ffmpeg introuvable ({ffmpeg})")
             return
         try:
             out = subprocess.run(
@@ -182,17 +184,42 @@ class RecorderWindow(tk.Toplevel):
                 encoding="utf-8", errors="replace",
                 creationflags=NO_WINDOW, timeout=8,
             ).stderr
-        except Exception:
+        except Exception as e:
+            self.after(0, self._parent._log_line,
+                       f"⚠  dshow : énumération échouée ({e!r})")
             return
 
-        devices, in_audio = [], False
-        for line in out.splitlines():
-            if "DirectShow audio devices" in line:
-                in_audio = True; continue
-            if "DirectShow video devices" in line and in_audio:
-                break
-            if in_audio:
-                m = re.search(r'"([^"]+)"\s*\(audio\)', line)
+        # Deux formats observés selon la version de ffmpeg :
+        #
+        # 1) Récent (libavdevice réécrit, ex. build BtbN N-125705, pas de
+        #    section « DirectShow audio devices ») :
+        #      [in#0 @ ...] "Microphone Array (Realtek(R) Audio)" (audio)
+        #      [in#0 @ ...]   Alternative name "@device_cm_{...}"
+        #    Le nom EST suivi de « (audio) » sur sa propre ligne.
+        #
+        # 2) Plus ancien, avec en-têtes de section :
+        #      [dshow @ ...] DirectShow audio devices
+        #      [dshow @ ...]  "Microphone (Realtek(R) Audio)"
+        #      [dshow @ ...]     Alternative name "@device_cm_{...}"
+        #    Le nom n'a PAS de suffixe « (audio) ».
+        #
+        # On essaie d'abord le format 1 (le plus courant aujourd'hui) et on
+        # replie sur le format 2 s'il ne donne rien.
+        devices = [m.group(1) for m in
+                   re.finditer(r'"([^"]+)"\s*\(audio\)', out)]
+
+        if not devices:
+            in_audio = False
+            for line in out.splitlines():
+                if "DirectShow audio devices" in line:
+                    in_audio = True
+                    continue
+                if "DirectShow video devices" in line:
+                    in_audio = False
+                    continue
+                if not in_audio or "Alternative name" in line:
+                    continue
+                m = re.search(r'"([^"]+)"', line)
                 if m:
                     devices.append(m.group(1))
 
@@ -200,6 +227,15 @@ class RecorderWindow(tk.Toplevel):
             preferred = [d for d in devices if "realtek" in d.lower()]
             others    = [d for d in devices if "realtek" not in d.lower()]
             self.after(0, self._update_dev_cb, preferred + others)
+        else:
+            # Diagnostic : ffmpeg a répondu mais aucun nom n'a été extrait
+            # (build sans dshow, sortie inattendue…) — on affiche un extrait
+            # brut plutôt que de laisser le combobox bloqué sur le
+            # placeholder sans explication.
+            excerpt = "\n    ".join(out.strip().splitlines()[-15:]) or "(vide)"
+            self.after(0, self._parent._log_line,
+                       f"⚠  dshow : aucun périphérique audio détecté\n"
+                       f"    {excerpt}")
 
     def _update_dev_cb(self, devices: list[str]):
         if not hasattr(self, "_dev_cb"):
