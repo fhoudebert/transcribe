@@ -28,9 +28,9 @@ from app_styles import (
 
 # Métadonnées de l'application
 APP_META = {
-    "version": "0.1",
+    "version": "0.3",
     "author":  "François Houdebert",
-    "site":    "https://codeberg.org/fhoudebert/transcribe/",
+    "site":    "https://github.com/fhoudebert/transcribe/",
     "components": [
         ("ffmpeg",          "https://ffmpeg.org"),
         ("whisper.cpp",     "https://github.com/ggerganov/whisper.cpp"),

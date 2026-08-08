@@ -26,9 +26,9 @@ from config import C, F
 
 # Métadonnées de l'application — à éditer ici.
 APP_META: dict = {
-    "version": "0.1",
+    "version": "0.3",
     "author":  "François Houdebert",
-    "site":    "https://codeberg.org/fhoudebert/transcribe",
+    "site":    "https://github.com/fhoudebert/transcribe",
     "components": [
         ("argos-translate", "https://github.com/argosopentech/argostranslate"),
     ],

@@ -356,10 +356,25 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
     def _apply_locale_defaults(self) -> None:
         """
         Pré-sélectionne la langue source et le dictionnaire d'après la locale.
+
+        Cas particulier fr/en : la locale détectée est pré-sélectionnée
+        comme langue CIBLE (et l'autre des deux comme source) — un
+        utilisateur en locale fr traduit le plus souvent VERS le français
+        (source en), et inversement pour une locale en. Pour toute autre
+        locale, comportement inchangé : elle est présélectionnée comme
+        langue SOURCE, la cible restant le premier choix disponible.
         """
         lc = detect_locale_lang()
 
-        if lc in MAPPING:
+        if lc in ("fr", "en") and lc in MAPPING:
+            other = "en" if lc == "fr" else "fr"
+            display_other = LANG_NAMES.get(other, other)
+            if (display_other in self.cb_src["values"]
+                    and other in MAPPING and lc in MAPPING[other]):
+                self.cb_src.set(display_other)
+                self._on_src_change()
+                self._select_target(lc)
+        elif lc in MAPPING:
             display = LANG_NAMES.get(lc, lc)
             if display in self.cb_src["values"]:
                 self.cb_src.set(display)
