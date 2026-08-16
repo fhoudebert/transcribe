@@ -224,6 +224,38 @@ class Transcribe(tk.Tk):
             return ["cmd", "/c", bat]
         return ["bash", os.path.join(self.root_dir, f"{name}.sh")]
 
+    def _clean_srt(self, *paths: str):
+        """Supprime les chevauchements de minutage des SRT indiqués.
+
+        whisper-cli produit des segments jointifs — la fin d'un bloc est
+        exactement le début du suivant — ce que certains lecteurs affichent
+        comme une superposition. nettoyer-srt.py recule la fin du bloc
+        précédent d'une image (40 ms) sans toucher aux débuts, pour ne pas
+        désynchroniser le texte de la parole.
+
+        Les chemins inexistants sont ignorés en silence : l'appelant passe
+        toutes les variantes possibles (.srt, .en.srt) sans savoir laquelle
+        whisper a produite. De même, l'absence du script n'interrompt rien —
+        c'est un confort d'affichage, pas une étape critique de la chaîne.
+        """
+        script = os.path.join(self.root_dir, "nettoyer-srt.py")
+        if not os.path.isfile(script):
+            return
+        for path in paths:
+            if not os.path.isfile(path):
+                continue
+            try:
+                proc = subprocess.run(
+                    [self._python_exe(), script, path],
+                    capture_output=True, text=True,
+                    encoding="utf-8", errors="replace",
+                    creationflags=NO_WINDOW, timeout=60)
+                out = (proc.stdout or "").strip().splitlines()
+                self._log_line("🧹 " + (out[-1] if out
+                                        else os.path.basename(path)))
+            except (OSError, subprocess.SubprocessError) as e:
+                self._log_line(f"🧹 {os.path.basename(path)} : {e}")
+
     def _model(self) -> str:
         """Retourne le nom du modèle sélectionné (ex: 'medium', 'large-v3')."""
         return self.model_key.get() or "medium"
@@ -1140,6 +1172,13 @@ class Transcribe(tk.Tk):
         self._after_whisper()
 
     def _after_whisper(self):
+        # Point de passage unique des deux chemins de sous-titrage : le chemin
+        # direct l'appelle en on_success, le chemin avec pré-traitement audio
+        # l'appelle en fin de _after_whisper_pre. Une seule insertion suffit
+        # donc à couvrir le bouton « Sous-titrer » dans les deux cas.
+        base = os.path.splitext(self.video_path.get().strip())[0]
+        self._clean_srt(base + ".en.srt", base + ".srt")
+
         if self._get_lang() == NO_TRANSLATION:
             choices = [
                 (t("choice_mkv_direct"), self._run_include),
@@ -1185,6 +1224,13 @@ class Transcribe(tk.Tk):
                       on_success=self._after_translate)
 
     def _after_translate(self):
+        # traduire-srt.py recopie les lignes de temps telles quelles : si le
+        # SRT source avait déjà été nettoyé, la traduction l'est aussi. Cet
+        # appel couvre le cas d'un SRT arrivé par un autre chemin (fichier
+        # importé, sous-titres produits avant l'ajout du nettoyage).
+        base = os.path.splitext(self.video_path.get().strip())[0]
+        self._clean_srt(base + f".{self._get_lang()}.srt")
+
         ChoiceDialog(self,
             title=t("dlg_translate_title"),
             message=t("dlg_translate_msg"),
