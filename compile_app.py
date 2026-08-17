@@ -140,7 +140,7 @@ APPS: dict[str, dict] = {
         # Fichiers copiés tels quels du srcdir vers la racine au déploiement :
         # traduire-srt.py est exécuté par le python du venv depuis la racine
         # (<racine>/traduire-srt.py), pas depuis le bundle PyInstaller.
-        "deploy_files": ["traduire-srt.py"],
+        "deploy_files": ["traduire-srt.py", "nettoyer-srt.py"],
     },
 }
 

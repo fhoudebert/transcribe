@@ -181,6 +181,10 @@ Suggestions and bug reports are welcome in the [issue tracker](https://codeberg.
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) — media downloading
 - [PyGlossary](https://github.com/ilius/pyglossary) — dictionary conversion
 
+## python dependencies
+Transcribe uses : torch, stanza, spacy, onnxruntime, numpy, scipy, rich, click, typer, Jinja2, tqdm, PyQt5, pysrt, emoji, minisbd, mwt, pyglossary (potentiellement), PyMuPDF (potentiellement)
+Truchement uses : argostranslate, argostranslate-files, bs4/lxml, pillow (optionnel), pyglossary (opportunité future), PyMuPDF (opportunité future)/
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
