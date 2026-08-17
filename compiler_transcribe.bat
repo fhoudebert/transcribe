@@ -1,8 +1,9 @@
 @echo off
 rem  compiler_transcribe.bat - compile transcribe et deploie a la racine
 rem  (binaire transcribe.exe, assets fusionnes, i18n). Toute la logique est dans
-rem  compile_app.py (multiplateforme) : stdlib complete embarquee, cf.
-rem  commentaires du script (ModuleNotFoundError pickletools sinon).
+rem  compile_app.py (multiplateforme et unique recette) :
+rem  la stdlib n'est PAS embarquee (transcribe n'appelle le venv qu'en
+rem  sous-processus) et les paquets tiers du venv sont exclus du binaire.
 setlocal
 set "SCRIPT_DIR=%~dp0"
 set "VPY=%SCRIPT_DIR%build\python\venv-windows\Scripts\python.exe"
