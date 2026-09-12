@@ -174,5 +174,6 @@
     "err_no_target": "No translation language selected (“No translation”).",
     "err_same_lang": "Source and target languages are identical: nothing to translate.",
     "rec_failed": "✘  Recording failed",
-    "err_dll_hint": "Missing DLL (0xC0000135): install the Microsoft Visual C++ x64 runtime — https://aka.ms/vc/17/release/vc_redist.x64.exe — then retry."
+    "err_dll_hint": "Missing DLL (0xC0000135): install the Microsoft Visual C++ x64 runtime — https://aka.ms/vc/17/release/vc_redist.x64.exe — then retry.",
+    "log_srt_clean_failed": "SRT cleanup failed : {name}"
 }

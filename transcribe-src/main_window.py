@@ -250,6 +250,17 @@ class Transcribe(tk.Tk):
                     capture_output=True, text=True,
                     encoding="utf-8", errors="replace",
                     creationflags=NO_WINDOW, timeout=60)
+                if proc.returncode != 0:
+                    # Échec du nettoyage : le SRT reste tel quel (blocs
+                    # jointifs/à durée nulle possibles) et ira au mux sans
+                    # avertissement si on ne le dit pas ici — l'échec du
+                    # mux qui suivrait serait alors sans rapport apparent
+                    # avec sa vraie cause.
+                    err = (proc.stderr or "").strip().splitlines()
+                    self._log_line(
+                        f"⚠  {t('log_srt_clean_failed', name=os.path.basename(path))}"
+                        + (f" : {err[-1]}" if err else ""))
+                    continue
                 out = (proc.stdout or "").strip().splitlines()
                 self._log_line("🧹 " + (out[-1] if out
                                         else os.path.basename(path)))
@@ -1277,6 +1288,12 @@ class Transcribe(tk.Tk):
         if (self.opt_dual_sub.get()
                 and os.path.isfile(srt_en)
                 and os.path.isfile(srt_tgt)):
+            # Défense en profondeur : ces fichiers ont normalement déjà été
+            # nettoyés par _after_whisper/_after_translate, mais peuvent
+            # aussi provenir d'une session antérieure (avant l'ajout du
+            # nettoyage, ou produits par un autre outil) — nettoyer_srt()
+            # est idempotent sur un SRT déjà correct.
+            self._clean_srt(srt_en, srt_tgt)
             self._run_include_dual(video, srt_en, srt_tgt, lang)
             return
 
@@ -1287,6 +1304,7 @@ class Transcribe(tk.Tk):
         base_out = os.path.splitext(video)[0] + "-subs.mkv"
 
         if best:
+            self._clean_srt(best)
             self._log_line(t("log_srt_detected", name=os.path.basename(best)))
             self._include_mono(video, best, base_out)
         else:
@@ -1299,6 +1317,11 @@ class Transcribe(tk.Tk):
             if not srt:
                 self._idle()
                 return
+            # SRT importé, jamais passé par _after_whisper/_after_translate :
+            # sans ce nettoyage, un bloc à durée nulle ou jointif ferait
+            # échouer le mux ffmpeg qui suit sans aucun rapport apparent
+            # avec sa vraie cause.
+            self._clean_srt(srt)
             self._include_mono(video, srt, base_out)
 
     def _is_audio_only(self, filepath: str) -> bool:

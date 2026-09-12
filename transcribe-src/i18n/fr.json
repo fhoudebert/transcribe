@@ -174,5 +174,6 @@
     "err_no_target": "Aucune langue de traduction sélectionnée (« Aucune traduction »).",
     "err_same_lang": "La langue source et la langue cible sont identiques : rien à traduire.",
     "rec_failed": "✘  Échec de l'enregistrement",
-    "err_dll_hint": "DLL manquante (0xC0000135) : installez le runtime Visual C++ x64 de Microsoft — https://aka.ms/vc/17/release/vc_redist.x64.exe — puis relancez."
+    "err_dll_hint": "DLL manquante (0xC0000135) : installez le runtime Visual C++ x64 de Microsoft — https://aka.ms/vc/17/release/vc_redist.x64.exe — puis relancez.",
+    "log_srt_clean_failed": "Nettoyage du SRT échoué : {name}"
 }
