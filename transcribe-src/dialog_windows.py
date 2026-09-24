@@ -17,6 +17,7 @@ from tkinter import ttk, filedialog, messagebox
 from app_config import (
     IS_WINDOWS, NO_WINDOW, MODELS,
     ALL_LANGUAGES, LANG_NAMES, lang_label, lang_code,
+    dialog_start,
 )
 from i18n import t
 from app_styles import (
@@ -183,9 +184,12 @@ class DownloadWindow(tk.Toplevel):
               self._on_close, color=BG4, fg=FG).pack(side="left")
 
     def _browse_dir(self):
+        # Dossier saisi, ou à défaut son premier parent existant
+        # (un initialdir inexistant fait ouvrir la boîte n'importe où).
+        initialdir, _ = dialog_start(self._dir_var.get())
         d = filedialog.askdirectory(
             title=t("url_outdir"),
-            initialdir=self._dir_var.get())
+            **({"initialdir": initialdir} if initialdir else {}))
         if d:
             self._dir_var.set(d)
 

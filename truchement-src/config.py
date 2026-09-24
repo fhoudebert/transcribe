@@ -166,8 +166,8 @@ refresh_mapping()
 
 LANG_NAMES: dict[str, str] = {
     "ar": "العربية (Arabic)",
-    "az": "Azərbaycan dili (Azerbaijani)",
-    "bg": "Български (Bulgarian)",
+    "az": "Azeri (Azəri)",
+    "bg": "български (Bulgarian)",
     "bn": "বাংলা (Bengali)",
     "ca": "Català (Catalan)",
     "cs": "Čeština (Czech)",
@@ -194,31 +194,31 @@ LANG_NAMES: dict[str, str] = {
     "ky": "Кыргызча (Kyrgyz)",
     "lt": "Lietuvių (Lithuanian)",
     "lv": "Latviešu (Latvian)",
-    "ms": "Bahasa Melayu (Malay)",
-    "nb": "Norsk bokmål (Norwegian Bokmål)",
+    "ms": "Malay",
+    "nb": "Norsk (Norwegian)",
     "nl": "Nederlands (Dutch)",
     # Argos distingue le portugais européen (pt) du brésilien (pb) : ce sont
     # deux paquets distincts, donc deux entrées ici.
-    "pb": "Português brasileiro (Portuguese, Brazil)",
+    "pb": "Portuguese (Brazil)",
     "pl": "Polski (Polish)",
     "pt": "Português (Portuguese)",
     "ro": "Română (Romanian)",
     "ru": "Русский (Russian)",
-    "sk": "Slovenčina (Slovak)",
+    "sk": "Slovenský (Slovak)",
     "sl": "Slovenščina (Slovenian)",
     "sq": "Shqip (Albanian)",
     "sv": "Svenska (Swedish)",
     "sw": "Kiswahili (Swahili)",
     "th": "ภาษาไทย (Thai)",
-    "tl": "Tagalog",
+    "tl": "Tagalog (filipino)",
     "tr": "Türkçe (Turkish)",
     "uk": "Українська (Ukrainian)",
     "ur": "اردو (Urdu)",
     "vi": "Tiếng Việt (Vietnamese)",
     # De même, zh désigne le chinois simplifié et zt le traditionnel : la
-    # mention est explicite des deux côtés pour éviter toute ambiguïté.
+    # mention « Simplified » / « traditional » lève l'ambiguïté.
     "zh": "简体中文 (Chinese, Simplified)",
-    "zt": "繁體中文 (Chinese, Traditional)",
+    "zt": "Chinese (traditional)",
 }
 
 
@@ -265,7 +265,12 @@ def lang_code(display: str) -> str:
     passés tels quels (jamais fiable pour les noms non latins).
     """
     for code, name in LANG_NAMES.items():
-        if display == name or display.startswith(name):
+        if display == name:
+            return code
+    # Préfixe : le libellé le plus long d'abord, pour qu'un nom court ne
+    # capture pas un nom plus long qui commencerait pareil.
+    for code, name in sorted(LANG_NAMES.items(), key=lambda kv: -len(kv[1])):
+        if display.startswith(name):
             return code
     return display[:2].lower()
 

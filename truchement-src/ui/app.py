@@ -362,7 +362,8 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
         utilisateur en locale fr traduit le plus souvent VERS le français
         (source en), et inversement pour une locale en. Pour toute autre
         locale, comportement inchangé : elle est présélectionnée comme
-        langue SOURCE, la cible restant le premier choix disponible.
+        langue SOURCE, la cible étant alors la langue de l'interface si
+        la paire existe (voir _on_src_change), sinon le premier choix.
         """
         lc = detect_locale_lang()
 
@@ -411,6 +412,15 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
         targets = sorted(display(c) for c in MAPPING.get(code, []))
         self.cb_tgt.configure(values=targets)
         self.cb_tgt.set(targets[0] if targets else "")
+        # Cible par défaut : la langue de l'interface (fr, en…). Si la
+        # source EST déjà cette langue, repli sur l'autre du couple fr/en.
+        # Les appelants qui imposent une cible (swap, locale, changement
+        # de langue d'UI) appellent _select_target() juste après : cette
+        # valeur par défaut est alors simplement écrasée.
+        preferred = self._ui
+        if preferred == code:
+            preferred = "fr" if code == "en" else "en"
+        self._select_target(preferred)
 
     def _select_target(self, code: str) -> None:
         """

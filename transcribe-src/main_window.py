@@ -19,6 +19,7 @@ from app_config import (
     AUTO_LANG, NO_TRANSLATION,
     lang_label, lang_code,
     load_settings, save_settings,
+    dialog_start,
 )
 
 # Ligne stderr de whisper-cli en mode -l auto :
@@ -863,8 +864,18 @@ class Transcribe(tk.Tk):
     # ── Actions ──────────────────────────────────────────────
 
     def _browse(self):
+        # La boîte s'ouvre sur le chemin saisi dans le champ voisin
+        # (dossier du fichier, fichier présélectionné) plutôt que sur le
+        # répertoire courant du processus.
+        initialdir, initialfile = dialog_start(self.video_path.get())
+        opts = {}
+        if initialdir:
+            opts["initialdir"] = initialdir
+        if initialfile:
+            opts["initialfile"] = initialfile
         p = filedialog.askopenfilename(
             title=t("sec_file"),
+            **opts,
             filetypes=[
                 (t("filter_video"), "*.mp4 *.mkv *.webm *.avi *.mov *.flv *.ts *.m4v"),
                 (t("filter_audio"), "*.mp3 *.wav *.m4a *.ogg *.flac *.aac"),
