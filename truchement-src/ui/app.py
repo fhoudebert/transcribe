@@ -409,18 +409,23 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
                 return f"{name}  {via}"
             return name
 
-        targets = sorted(display(c) for c in MAPPING.get(code, []))
+        codes   = MAPPING.get(code, [])
+        targets = sorted(display(c) for c in codes)
         self.cb_tgt.configure(values=targets)
-        self.cb_tgt.set(targets[0] if targets else "")
+
         # Cible par défaut : la langue de l'interface (fr, en…). Si la
-        # source EST déjà cette langue, repli sur l'autre du couple fr/en.
+        # source EST déjà cette langue, repli sur l'autre du couple fr/en,
+        # puis sur le premier choix de la liste.
+        # Le libellé est choisi dans la liste Python `targets` construite
+        # ci-dessus — et NON relu depuis le widget : selon la version de
+        # Tk, cb_tgt["values"] peut revenir en chaîne Tcl brute ou en
+        # objets Tcl_Obj, sur lesquels la comparaison échouait.
         # Les appelants qui imposent une cible (swap, locale, changement
         # de langue d'UI) appellent _select_target() juste après : cette
         # valeur par défaut est alors simplement écrasée.
-        preferred = self._ui
-        if preferred == code:
-            preferred = "fr" if code == "en" else "en"
-        self._select_target(preferred)
+        preferred = self._ui if self._ui != code else ("fr" if code == "en" else "en")
+        default = display(preferred) if preferred in codes else ""
+        self.cb_tgt.set(default or (targets[0] if targets else ""))
 
     def _select_target(self, code: str) -> None:
         """
@@ -428,7 +433,10 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
         retrouvant son libellé exact dans les valeurs courantes (qui peuvent
         porter le suffixe pivot localisé).
         """
-        for value in self.cb_tgt["values"]:
+        # splitlist + str() : valeurs normalisées quel que soit le type
+        # renvoyé par Tk (tuple de str, chaîne Tcl, tuple de Tcl_Obj).
+        for value in self.tk.splitlist(self.cb_tgt["values"]):
+            value = str(value)
             if lang_code(value) == code:
                 self.cb_tgt.set(value)
                 return
