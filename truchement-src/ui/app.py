@@ -702,6 +702,7 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
         self._file_lbl_title.configure(text=t.get("file_tab_title", "File Translation"))
         self._file_lbl_fmt.configure(text=t.get("file_formats", ""))
         self._file_pick_btn.configure(text=t.get("file_pick_btn", "📂  Choose file…"))
+        self._file_dir_lbl.configure(text=t.get("file_dir_label", "Folder:"))
         self._file_tr_btn.configure(text=t.get("file_translate_btn", "Translate file →"))
         self._file_open_btn.configure(text=t.get("file_open_btn", "📁  Open folder"))
         self._file_out_head.configure(text=t.get("file_out_label", "Output file") + " :")

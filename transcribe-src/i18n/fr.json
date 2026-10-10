@@ -175,5 +175,22 @@
     "err_same_lang": "La langue source et la langue cible sont identiques : rien à traduire.",
     "rec_failed": "✘  Échec de l'enregistrement",
     "err_dll_hint": "DLL manquante (0xC0000135) : installez le runtime Visual C++ x64 de Microsoft — https://aka.ms/vc/17/release/vc_redist.x64.exe — puis relancez.",
-    "log_srt_clean_failed": "Nettoyage du SRT échoué : {name}"
+    "log_srt_clean_failed": "Nettoyage du SRT échoué : {name}",
+    "url_analyze": "🔍 Analyser",
+    "url_analyzing": "⏳  Analyse de l'URL…",
+    "url_analyze_failed": "Analyse impossible : le téléchargement reste possible sans ces options.",
+    "url_probe_ok": "✔  Analyse : {n} langue(s) de sous-titres, {audio} langue(s) audio",
+    "url_opt_subs": "Télécharger les sous-titres",
+    "url_opt_audio": "Ajouter des pistes audio",
+    "url_opt_need_analyze": "cliquez sur Analyser",
+    "url_opt_subs_count": "{n} disponible(s), {auto} automatique(s)",
+    "url_opt_subs_none": "aucun sous-titre disponible",
+    "url_opt_audio_count": "{n} langues disponibles",
+    "url_opt_audio_none": "une seule piste audio détectée",
+    "url_auto_toggle": "Sous-titres automatiques ({n})",
+    "url_default_track": "(par défaut)",
+    "url_log_empty_srt": "Sous-titre vide ignoré : {name}",
+    "url_log_subs_saved": "Sous-titres enregistrés : {names}",
+    "url_log_audio_tagged": "Langues des pistes audio : {langs}",
+    "url_log_audio_tag_failed": "Langues des pistes audio non étiquetées : {why}"
 }
