@@ -105,6 +105,18 @@ else
     EXTRA+=(--no-write-auto-subs)
 fi
 
+# --xattrs (URL d'origine dans les attributs étendus) : seulement si le
+# dossier de destination les supporte — sinon (clé USB exFAT/FAT/NTFS,
+# partage réseau…) yt-dlp échoue en fin de traitement avec « This filesystem
+# doesn't support extended attributes » alors que la vidéo est complète.
+XATTR_FLAG=()
+_xt="$OUTDIR/.xattr_test.$$"
+if command -v setfattr >/dev/null 2>&1 && : > "$_xt" 2>/dev/null \
+   && setfattr -n user.test -v 1 "$_xt" 2>/dev/null; then
+    XATTR_FLAG=(--xattrs)
+fi
+rm -f "$_xt" 2>/dev/null
+
 "$YTDLP" \
     -f "$FMT" \
     -S "vcodec:h264,lang,quality,res,fps,hdr:12,acodec:aac" \
@@ -116,7 +128,7 @@ fi
     -o "%(title).80s [%(id)s].%(ext)s" \
     --restrict-filenames \
     --embed-chapters \
-    --xattrs \
+    ${XATTR_FLAG[@]+"${XATTR_FLAG[@]}"} \
     --newline \
     --progress \
     --print-to-file "after_move:%(filepath)s" "$OUTFILE_TMP" \

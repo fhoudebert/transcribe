@@ -204,11 +204,31 @@ class DownloadWindow(tk.Toplevel):
 
         self._btn_row = tk.Frame(self, bg=BG2)
         self._btn_row.pack(pady=(4, 14), padx=20, fill="x")
-        self._btn_dl = mkbtn(self._btn_row, t("url_download"),
-                             self._start, color=ACCENT)
-        self._btn_dl.pack(side="left", expand=True, fill="x", padx=(0, 8))
-        mkbtn(self._btn_row, t("url_cancel"),
+        self._build_dl_buttons(self._btn_row)
+
+    def _build_dl_buttons(self, row):
+        """
+        Boutons de téléchargement :
+          • « Télécharger »          — rapide, sans analyse ni options
+                                       (comportement historique) ;
+          • « Télécharger la sélection » — avec les sous-titres / pistes
+                                       audio cochés (après « Analyser »).
+        """
+        self._btn_dl = mkbtn(row, t("url_download"),
+                             lambda: self._start(False), color=ACCENT)
+        self._btn_dl.pack(side="left", expand=True, fill="x", padx=(0, 6))
+        self._btn_sel = mkbtn(row, t("url_download_sel"),
+                              lambda: self._start(True), color=BG4, fg=FG)
+        self._btn_sel.pack(side="left", expand=True, fill="x", padx=(0, 8))
+        self._btn_sel.config(state="normal" if self._probe_res else "disabled")
+        mkbtn(row, t("url_cancel"),
               self._on_close, color=BG4, fg=FG).pack(side="left")
+
+    def _set_dl_state(self, running: bool):
+        self._btn_dl.config(state="disabled" if running else "normal")
+        self._btn_sel.config(
+            state="normal" if (self._probe_res and not running)
+            else "disabled")
 
     # ── Options issues de l'analyse ────────────────────────────
 
@@ -342,6 +362,8 @@ class DownloadWindow(tk.Toplevel):
             cb.config(state="disabled")
             lbl.config(text=t("url_opt_need_analyze"))
         self._refresh_options()
+        if hasattr(self, "_btn_sel"):
+            self._btn_sel.config(state="disabled")
 
     def _on_url_edit(self, *_):
         if self._probed_url and \
@@ -400,6 +422,7 @@ class DownloadWindow(tk.Toplevel):
         if self._url_var.get().strip() != url:
             return                  # l'URL a changé pendant l'analyse
         self._probe_res, self._probed_url = res, url
+        self._btn_sel.config(state="normal")
         self._sub_codes = [c for c, _ in res.subs]
         self._auto_codes = [c for c, _ in res.auto]
         self._audio_codes = list(res.audio)
@@ -420,10 +443,17 @@ class DownloadWindow(tk.Toplevel):
 
         # Présélection : langue de l'interface parmi les sous-titres manuels
         ui = (get_locale() or "").split("-")[0].lower()
-        for i, code in enumerate(self._sub_codes):
-            if code.split("-")[0].lower() == ui:
-                self._lb_subs.selection_set(i)
-                break
+        # (exact d'abord ; les variantes « forced » / « acc » — souvent vides
+        # ou malentendants — ne sont proposées qu'en dernier recours)
+        def _plain(c):
+            return not c.lower().endswith(("-forced", "-acc"))
+        cands = [i for i, c in enumerate(self._sub_codes)
+                 if c.split("-")[0].lower() == ui]
+        pick = next((i for i in cands if self._sub_codes[i].lower() == ui),
+                    next((i for i in cands if _plain(self._sub_codes[i])),
+                         cands[0] if cands else None))
+        if pick is not None:
+            self._lb_subs.selection_set(pick)
 
         n_subs, n_auto = len(self._sub_codes), len(self._auto_codes)
         if n_subs or n_auto:
@@ -448,7 +478,7 @@ class DownloadWindow(tk.Toplevel):
     def _selected(self, lb, codes: list[str]) -> list[str]:
         return [codes[i] for i in lb.curselection() if i < len(codes)]
 
-    def _options_env(self, url: str) -> tuple[dict, list[str]]:
+    def _options_env(self, url: str, with_options: bool = True) -> tuple[dict, list[str]]:
         """
         Variables d'environnement transmises au script de téléchargement,
         d'après les cases cochées. Sans analyse valide pour CETTE url, ou sans
@@ -460,7 +490,8 @@ class DownloadWindow(tk.Toplevel):
                   "TRANSCRIBE_DL_AUDIO"):
             env.pop(k, None)
         audio: list[str] = []
-        if not (self._probe_res and self._probed_url == url):
+        if not (with_options and self._probe_res
+                and self._probed_url == url):
             return env, audio
 
         if self._subs_on.get():
@@ -509,7 +540,7 @@ class DownloadWindow(tk.Toplevel):
         return ["bash",
                 os.path.join(self._parent.root_dir, "download_url.sh")]
 
-    def _start(self):
+    def _start(self, with_options: bool = False):
         url = self._url_var.get().strip()
         if not url:
             messagebox.showwarning(t("url_err_title"),
@@ -527,14 +558,14 @@ class DownloadWindow(tk.Toplevel):
         outdir = self._dir_var.get().strip() or self._parent.root_dir
         os.makedirs(outdir, exist_ok=True)
 
-        self._btn_dl.config(state="disabled")
+        self._set_dl_state(True)
         self._status_var.set(t("url_running"))
         self._log_line(f"{t('url_log_start')} : {url}")
         self._log_line(f"→ {outdir}")
         self._log_line("─" * 56)
 
         cmd = self._script() + [url, outdir]
-        env, audio = self._options_env(url)
+        env, audio = self._options_env(url, with_options)
         self._run_audio_langs = audio
         self._run_opts_active = bool(
             env.get("TRANSCRIBE_DL_SUBS") or env.get("TRANSCRIBE_DL_AUDIO"))
@@ -685,18 +716,13 @@ class DownloadWindow(tk.Toplevel):
         row = self._btn_row
         for w in row.winfo_children():
             w.destroy()
-        self._btn_dl = mkbtn(row, t("url_download"),
-                             self._start, color=ACCENT)
-        self._btn_dl.pack(side="left", expand=True,
-                          fill="x", padx=(0, 8))
-        mkbtn(row, t("url_cancel"),
-              self._on_close, color=BG4, fg=FG).pack(side="left")
+        self._build_dl_buttons(row)
 
     def _on_error(self, code: int):
         msg = f"✘  {t('url_err_title')} (code {code})"
         self._status_var.set(msg)
         self._log_line(f"\n{msg}")
-        self._btn_dl.config(state="normal")
+        self._set_dl_state(False)
 
     def _on_close(self):
         if self._proc and self._proc.poll() is None:

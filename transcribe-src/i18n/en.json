@@ -192,5 +192,6 @@
     "url_log_empty_srt": "Empty subtitle skipped: {name}",
     "url_log_subs_saved": "Subtitles saved: {names}",
     "url_log_audio_tagged": "Audio track languages: {langs}",
-    "url_log_audio_tag_failed": "Audio track languages not tagged: {why}"
+    "url_log_audio_tag_failed": "Audio track languages not tagged: {why}",
+    "url_download_sel": "⬇  Download selection"
 }

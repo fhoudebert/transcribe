@@ -192,5 +192,6 @@
     "url_log_empty_srt": "Sous-titre vide ignoré : {name}",
     "url_log_subs_saved": "Sous-titres enregistrés : {names}",
     "url_log_audio_tagged": "Langues des pistes audio : {langs}",
-    "url_log_audio_tag_failed": "Langues des pistes audio non étiquetées : {why}"
+    "url_log_audio_tag_failed": "Langues des pistes audio non étiquetées : {why}",
+    "url_download_sel": "⬇  Télécharger la sélection"
 }
