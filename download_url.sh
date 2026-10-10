@@ -109,6 +109,13 @@ fi
 # dossier de destination les supporte — sinon (clé USB exFAT/FAT/NTFS,
 # partage réseau…) yt-dlp échoue en fin de traitement avec « This filesystem
 # doesn't support extended attributes » alors que la vidéo est complète.
+# Options demandées : on retélécharge même si le fichier existe déjà, sinon
+# yt-dlp saute la vidéo (« already been downloaded ») et garde l'ancienne
+# version — sans les pistes audio / sous-titres demandés.
+if [ "${#AUDIO_LANGS[@]}" -ge 2 ] || [ "${#SUBS_LANGS[@]}" -ge 1 ]; then
+    EXTRA+=(--force-overwrites)
+fi
+
 XATTR_FLAG=()
 _xt="$OUTDIR/.xattr_test.$$"
 if command -v setfattr >/dev/null 2>&1 && : > "$_xt" 2>/dev/null \
@@ -117,7 +124,7 @@ if command -v setfattr >/dev/null 2>&1 && : > "$_xt" 2>/dev/null \
 fi
 rm -f "$_xt" 2>/dev/null
 
-"$YTDLP" \
+CMD=( "$YTDLP" \
     -f "$FMT" \
     -S "vcodec:h264,lang,quality,res,fps,hdr:12,acodec:aac" \
     --merge-output-format mp4 \
@@ -133,7 +140,13 @@ rm -f "$_xt" 2>/dev/null
     --progress \
     --print-to-file "after_move:%(filepath)s" "$OUTFILE_TMP" \
     -P "$OUTDIR" \
-    "$URL"
+    "$URL" )
+
+# Commande réellement lancée (affichée dans le journal de l'IHM)
+echo "Commande :"
+printf '  %q' "${CMD[@]}"; echo
+echo ""
+"${CMD[@]}"
 
 log INFO "Fin téléchargement"
 

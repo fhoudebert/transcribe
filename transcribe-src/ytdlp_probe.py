@@ -232,6 +232,17 @@ def _remux(ffmpeg: str, outfile: str, tmp: str, audio_codes: list,
     os.replace(tmp, outfile)
 
 
+def _add_streams(events: list, ffprobe: str, outfile: str,
+                 creationflags: int) -> None:
+    """Ajoute l'événement ("streams", n_audio, n_sous-titres) du fichier final."""
+    try:
+        events.append(("streams",
+                       _count_audio(ffprobe, outfile, creationflags, "a"),
+                       _count_audio(ffprobe, outfile, creationflags, "s")))
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
 def finalize_download(outfile: str, audio_langs: list[str],
                       ffmpeg: str, ffprobe: str,
                       creationflags: int = 0,
@@ -278,7 +289,10 @@ def finalize_download(outfile: str, audio_langs: list[str],
     tag_audio = len(audio_langs) >= 2
     subs = [(os.path.join(folder, n), _sub_code(n, stem)) for n in kept] \
         if embed_subs and ext.lower() in (".mp4", ".m4v", ".mov") else []
-    if not os.path.isfile(outfile) or not (tag_audio or subs):
+    if not os.path.isfile(outfile):
+        return events
+    if not (tag_audio or subs):
+        _add_streams(events, ffprobe, outfile, creationflags)
         return events
 
     tmp = os.path.join(folder, stem + ".__tag__" + ext)
@@ -297,6 +311,7 @@ def finalize_download(outfile: str, audio_langs: list[str],
         if subs and _count_audio(ffprobe, outfile, creationflags, "s"):
             subs = []       # déjà incorporés (fichier retéléchargé/déjà traité)
         if not (tag_audio or subs):
+            _add_streams(events, ffprobe, outfile, creationflags)
             return events
         try:
             _remux(ffmpeg, outfile, tmp, codes, subs, creationflags)
@@ -325,4 +340,5 @@ def finalize_download(outfile: str, audio_langs: list[str],
                 os.remove(tmp)
             except OSError:
                 pass
+    _add_streams(events, ffprobe, outfile, creationflags)
     return events

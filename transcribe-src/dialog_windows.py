@@ -9,6 +9,7 @@ import shutil
 import threading
 import datetime
 import tempfile
+import shlex
 import subprocess
 
 import tkinter as tk
@@ -577,6 +578,7 @@ class DownloadWindow(tk.Toplevel):
         self._run_audio_langs = audio
         self._run_opts_active = bool(
             env.get("TRANSCRIBE_DL_SUBS") or env.get("TRANSCRIBE_DL_AUDIO"))
+        self._log_launch(cmd, env, with_options)
         threading.Thread(target=self._worker, args=(cmd, env),
                          daemon=True).start()
 
@@ -620,6 +622,28 @@ class DownloadWindow(tk.Toplevel):
             self.after(0, self._log_line, f"✘ {e}")
             self.after(0, self._status_var.set, f"✘ {e}")
 
+    def _log_launch(self, cmd: list, env: dict, with_options: bool):
+        """Journal : mode, options retenues et commande exacte envoyée."""
+        keys = ("TRANSCRIBE_DL_SUBS", "TRANSCRIBE_DL_AUTOSUBS",
+                "TRANSCRIBE_DL_AUDIO")
+        opts = {k: env[k] for k in keys if env.get(k)}
+        if opts:
+            self._log_line("⚙  " + t(
+                "url_log_mode_sel",
+                subs=opts.get("TRANSCRIBE_DL_SUBS", "—"),
+                auto=t("yes") if opts.get("TRANSCRIBE_DL_AUTOSUBS") == "1"
+                else t("no"),
+                audio=opts.get("TRANSCRIBE_DL_AUDIO", "—")))
+        else:
+            self._log_line("⚙  " + t("url_log_mode_quick"))
+        if IS_WINDOWS:
+            prefix = "".join(f'set "{k}={v}" && ' for k, v in opts.items())
+            shown = prefix + subprocess.list2cmdline(cmd)
+        else:
+            prefix = "".join(f"{k}={shlex.quote(v)} " for k, v in opts.items())
+            shown = prefix + " ".join(shlex.quote(c) for c in cmd)
+        self._log_line("$ " + shown)
+
     def _log_events(self, events: list):
         """Traduit les événements de finalize_download en lignes de journal."""
         for ev in events:
@@ -629,6 +653,9 @@ class DownloadWindow(tk.Toplevel):
             elif kind == "subs":
                 self._log_line("💬 " + t("url_log_subs_saved",
                                          names=", ".join(ev[1])))
+            elif kind == "streams":
+                self._log_line("🎞  " + t("url_log_streams",
+                                         audio=ev[1], subs=ev[2]))
             elif kind == "subs_embedded":
                 self._log_line("💬 " + t("url_log_subs_embedded", langs=ev[1]))
             elif kind == "subs_embed_failed":

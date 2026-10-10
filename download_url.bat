@@ -78,6 +78,17 @@ if defined TRANSCRIBE_DL_SUBS (
     echo Sous-titres : %TRANSCRIBE_DL_SUBS%
 )
 
+rem Options demandees : retelecharger meme si le fichier existe deja (sinon
+rem yt-dlp saute la video et garde l'ancienne, sans pistes/sous-titres).
+set "FORCE_FLAG="
+if %A_COUNT% GEQ 2 set "FORCE_FLAG=--force-overwrites"
+if defined TRANSCRIBE_DL_SUBS set "FORCE_FLAG=--force-overwrites"
+
+rem Commande reellement lancee (affichee dans le journal de l'IHM)
+echo Commande :
+echo   "%YTDLP%" -f "%FMT%" -S "vcodec:h264,lang,quality,res,fps,hdr:12,acodec:aac" --merge-output-format mp4 --remux-video mp4 --restrict-filenames %EXTRA_AUDIO% %SUBS_FLAGS% --sub-langs "%SUBLANGS%" %AUTOSUBS_FLAG% %FORCE_FLAG% --embed-thumbnail --embed-chapters -P "%OUTDIR%" "%URL%"
+echo.
+
 "%YTDLP%" ^
     -f "%FMT%" ^
     -S "vcodec:h264,lang,quality,res,fps,hdr:12,acodec:aac" ^
@@ -88,6 +99,7 @@ if defined TRANSCRIBE_DL_SUBS (
     %SUBS_FLAGS% ^
     --sub-langs "%SUBLANGS%" ^
     %AUTOSUBS_FLAG% ^
+    %FORCE_FLAG% ^
     --embed-thumbnail ^
     --embed-chapters ^
     --newline ^

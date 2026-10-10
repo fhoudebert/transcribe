@@ -195,5 +195,10 @@
     "url_log_audio_tag_failed": "Audio track languages not tagged: {why}",
     "url_download_sel": "⬇  Download selection",
     "url_log_subs_embedded": "Subtitles embedded in the mp4: {langs}",
-    "url_log_subs_embed_failed": "Subtitles not embedded in the mp4 (.srt files kept): {why}"
+    "url_log_subs_embed_failed": "Subtitles not embedded in the mp4 (.srt files kept): {why}",
+    "url_log_mode_quick": "Quick mode: no options (default tracks and subtitles)",
+    "url_log_mode_sel": "Options: subtitles = {subs} (automatic: {auto}) · audio = {audio}",
+    "url_log_streams": "Final file: {audio} audio track(s), {subs} embedded subtitle track(s)",
+    "yes": "yes",
+    "no": "no"
 }
