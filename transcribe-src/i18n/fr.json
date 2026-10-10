@@ -193,12 +193,12 @@
     "url_log_subs_saved": "Sous-titres enregistrés : {names}",
     "url_log_audio_tagged": "Langues des pistes audio : {langs}",
     "url_log_audio_tag_failed": "Langues des pistes audio non étiquetées : {why}",
-    "url_download_sel": "⬇  Télécharger la sélection",
     "url_log_subs_embedded": "Sous-titres incorporés au mp4 : {langs}",
     "url_log_subs_embed_failed": "Sous-titres non incorporés au mp4 (fichiers .srt conservés) : {why}",
     "url_log_mode_quick": "Mode rapide : aucune option (pistes et sous-titres par défaut)",
     "url_log_mode_sel": "Options : sous-titres = {subs} (automatiques : {auto}) · audio = {audio}",
     "url_log_streams": "Fichier final : {audio} piste(s) audio, {subs} piste(s) de sous-titres incorporée(s)",
     "yes": "oui",
-    "no": "non"
+    "no": "non",
+    "url_log_mode_none_ticked": "Analyse faite mais aucune case cochée (ou moins de 2 pistes audio) : pistes et sous-titres par défaut"
 }

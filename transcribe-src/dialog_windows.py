@@ -209,30 +209,18 @@ class DownloadWindow(tk.Toplevel):
 
     def _build_dl_buttons(self, row):
         """
-        Boutons de téléchargement :
-          • « Télécharger »          — rapide, sans analyse ni options
-                                       (comportement historique) ;
-          • « Télécharger la sélection » — avec les sous-titres / pistes
-                                       audio cochés (après « Analyser »).
+        « Télécharger » : sans analyse ni case cochée, téléchargement rapide
+        (comportement historique) ; après « Analyser », les sous-titres /
+        pistes audio cochés sont pris en compte.
         """
         self._btn_dl = mkbtn(row, t("url_download"),
-                             lambda: self._start(False), color=ACCENT)
-        self._btn_dl.pack(side="left", expand=True, fill="x", padx=(0, 6))
-        sel_label = t("url_download_sel")
-        if sel_label.startswith("["):           # clé absente du JSON local
-            sel_label = "⬇  Télécharger la sélection"
-        self._btn_sel = mkbtn(row, sel_label,
-                              lambda: self._start(True), color=BG4, fg=FG)
-        self._btn_sel.pack(side="left", expand=True, fill="x", padx=(0, 8))
-        self._btn_sel.config(state="normal" if self._probe_res else "disabled")
+                             self._start, color=ACCENT)
+        self._btn_dl.pack(side="left", expand=True, fill="x", padx=(0, 8))
         mkbtn(row, t("url_cancel"),
               self._on_close, color=BG4, fg=FG).pack(side="left")
 
     def _set_dl_state(self, running: bool):
         self._btn_dl.config(state="disabled" if running else "normal")
-        self._btn_sel.config(
-            state="normal" if (self._probe_res and not running)
-            else "disabled")
 
     # ── Options issues de l'analyse ────────────────────────────
 
@@ -366,10 +354,6 @@ class DownloadWindow(tk.Toplevel):
             cb.config(state="disabled")
             lbl.config(text=t("url_opt_need_analyze"))
         self._refresh_options()
-        try:                         # bouton détruit après un téléchargement
-            self._btn_sel.config(state="disabled")
-        except (AttributeError, tk.TclError):
-            pass
 
     def _on_url_edit(self, *_):
         if self._probed_url and \
@@ -428,7 +412,6 @@ class DownloadWindow(tk.Toplevel):
         if self._url_var.get().strip() != url:
             return                  # l'URL a changé pendant l'analyse
         self._probe_res, self._probed_url = res, url
-        self._btn_sel.config(state="normal")
         self._sub_codes = [c for c, _ in res.subs]
         self._auto_codes = [c for c, _ in res.auto]
         self._audio_codes = list(res.audio)
@@ -487,7 +470,7 @@ class DownloadWindow(tk.Toplevel):
     def _selected(self, lb, codes: list[str]) -> list[str]:
         return [codes[i] for i in lb.curselection() if i < len(codes)]
 
-    def _options_env(self, url: str, with_options: bool = True) -> tuple[dict, list[str]]:
+    def _options_env(self, url: str) -> tuple[dict, list[str]]:
         """
         Variables d'environnement transmises au script de téléchargement,
         d'après les cases cochées. Sans analyse valide pour CETTE url, ou sans
@@ -499,8 +482,7 @@ class DownloadWindow(tk.Toplevel):
                   "TRANSCRIBE_DL_AUDIO"):
             env.pop(k, None)
         audio: list[str] = []
-        if not (with_options and self._probe_res
-                and self._probed_url == url):
+        if not (self._probe_res and self._probed_url == url):
             return env, audio
 
         if self._subs_on.get():
@@ -549,7 +531,7 @@ class DownloadWindow(tk.Toplevel):
         return ["bash",
                 os.path.join(self._parent.root_dir, "download_url.sh")]
 
-    def _start(self, with_options: bool = False):
+    def _start(self):
         url = self._url_var.get().strip()
         if not url:
             messagebox.showwarning(t("url_err_title"),
@@ -574,11 +556,11 @@ class DownloadWindow(tk.Toplevel):
         self._log_line("─" * 56)
 
         cmd = self._script() + [url, outdir]
-        env, audio = self._options_env(url, with_options)
+        env, audio = self._options_env(url)
         self._run_audio_langs = audio
         self._run_opts_active = bool(
             env.get("TRANSCRIBE_DL_SUBS") or env.get("TRANSCRIBE_DL_AUDIO"))
-        self._log_launch(cmd, env, with_options)
+        self._log_launch(cmd, env)
         threading.Thread(target=self._worker, args=(cmd, env),
                          daemon=True).start()
 
@@ -622,7 +604,7 @@ class DownloadWindow(tk.Toplevel):
             self.after(0, self._log_line, f"✘ {e}")
             self.after(0, self._status_var.set, f"✘ {e}")
 
-    def _log_launch(self, cmd: list, env: dict, with_options: bool):
+    def _log_launch(self, cmd: list, env: dict):
         """Journal : mode, options retenues et commande exacte envoyée."""
         keys = ("TRANSCRIBE_DL_SUBS", "TRANSCRIBE_DL_AUTOSUBS",
                 "TRANSCRIBE_DL_AUDIO")
@@ -634,6 +616,8 @@ class DownloadWindow(tk.Toplevel):
                 auto=t("yes") if opts.get("TRANSCRIBE_DL_AUTOSUBS") == "1"
                 else t("no"),
                 audio=opts.get("TRANSCRIBE_DL_AUDIO", "—")))
+        elif self._probe_res and self._probed_url == self._url_var.get().strip():
+            self._log_line("⚙  " + t("url_log_mode_none_ticked"))
         else:
             self._log_line("⚙  " + t("url_log_mode_quick"))
         if IS_WINDOWS:
