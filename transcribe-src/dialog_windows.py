@@ -217,7 +217,10 @@ class DownloadWindow(tk.Toplevel):
         self._btn_dl = mkbtn(row, t("url_download"),
                              lambda: self._start(False), color=ACCENT)
         self._btn_dl.pack(side="left", expand=True, fill="x", padx=(0, 6))
-        self._btn_sel = mkbtn(row, t("url_download_sel"),
+        sel_label = t("url_download_sel")
+        if sel_label.startswith("["):           # clé absente du JSON local
+            sel_label = "⬇  Télécharger la sélection"
+        self._btn_sel = mkbtn(row, sel_label,
                               lambda: self._start(True), color=BG4, fg=FG)
         self._btn_sel.pack(side="left", expand=True, fill="x", padx=(0, 8))
         self._btn_sel.config(state="normal" if self._probe_res else "disabled")
@@ -362,8 +365,10 @@ class DownloadWindow(tk.Toplevel):
             cb.config(state="disabled")
             lbl.config(text=t("url_opt_need_analyze"))
         self._refresh_options()
-        if hasattr(self, "_btn_sel"):
+        try:                         # bouton détruit après un téléchargement
             self._btn_sel.config(state="disabled")
+        except (AttributeError, tk.TclError):
+            pass
 
     def _on_url_edit(self, *_):
         if self._probed_url and \
@@ -438,8 +443,11 @@ class DownloadWindow(tk.Toplevel):
             if i == 0:
                 label += "  " + t("url_default_track")
             self._lb_audio.insert("end", label)
-        if self._audio_codes:
-            self._lb_audio.selection_set(0)
+        # Toutes les langues audio sont présélectionnées (hors « mul » :
+        # piste multilingue/mixte, « und » : indéterminée)
+        for i, code in enumerate(self._audio_codes):
+            if i == 0 or code.lower() not in ("mul", "und", "zxx"):
+                self._lb_audio.selection_set(i)
 
         # Présélection : langue de l'interface parmi les sous-titres manuels
         ui = (get_locale() or "").split("-")[0].lower()
@@ -621,6 +629,11 @@ class DownloadWindow(tk.Toplevel):
             elif kind == "subs":
                 self._log_line("💬 " + t("url_log_subs_saved",
                                          names=", ".join(ev[1])))
+            elif kind == "subs_embedded":
+                self._log_line("💬 " + t("url_log_subs_embedded", langs=ev[1]))
+            elif kind == "subs_embed_failed":
+                self._log_line("⚠  " + t("url_log_subs_embed_failed",
+                                         why=ev[1]))
             elif kind == "audio_tagged":
                 self._log_line("🏷  " + t("url_log_audio_tagged", langs=ev[1]))
             elif kind == "audio_tag_failed":
@@ -705,6 +718,8 @@ class DownloadWindow(tk.Toplevel):
         self._outfile = None
         self._proc    = None
         self._url_var.set("")
+        self._probing = False
+        self._btn_probe.config(state="normal")
         self._reset_opts()
         self._run_audio_langs = []
         self._run_opts_active = False
