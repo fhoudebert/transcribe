@@ -107,6 +107,15 @@ def fix(blocks: list[dict], gap: int, min_dur: int) -> int:
             b["end"] = b["start"] + min_dur
         prev_end = b["end"]
 
+    # Garde finale : quel que soit le cas non anticipé par les deux passes
+    # ci-dessus, on ne laisse JAMAIS un bloc à durée nulle ou négative sortir
+    # de cette fonction — un bloc ainsi malformé fait échouer tout le fichier
+    # dans certains mux (ffmpeg/mkvmerge rejettent la piste entière plutôt
+    # que ce seul sous-titre).
+    for b in blocks:
+        if b["end"] <= b["start"]:
+            b["end"] = b["start"] + min_dur
+
     return sum(1 for b, old in zip(blocks, before)
                if (b["start"], b["end"]) != old)
 

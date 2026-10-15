@@ -90,6 +90,6 @@ if [ -f "$DIR/$BASE_NAME.srt" ]; then
   mv "$DIR/$BASE_NAME.srt" "$SRT_FILE"
 fi
 
-
+"$SCRIPT_DIR/build/python/venv/bin/python" "$SCRIPT_DIR/nettoyer-srt.py" "$SRT_FILE"
 echo ""
 echo "Sous-titres générés : $SRT_FILE"

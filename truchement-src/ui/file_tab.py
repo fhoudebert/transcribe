@@ -25,12 +25,42 @@ from config import C, F, LANG_NAMES
 from translator import translate_file, TIMEOUT_FILE
 
 
+def _dialog_start(path: str) -> tuple[str | None, str | None]:
+    """
+    Déduit (initialdir, initialfile) pour filedialog à partir du texte
+    saisi dans le champ « dossier » de l'onglet Fichier :
+      • dossier existant   → on ouvre dedans ;
+      • fichier existant   → on ouvre son dossier, fichier présélectionné ;
+      • chemin inexistant  → premier dossier parent existant ;
+      • vide / inexploitable → (None, None) : comportement par défaut.
+    Tolère les guillemets (copier-coller depuis un explorateur) et ~.
+    """
+    p = (path or "").strip().strip('"').strip("'").strip()
+    if not p or "://" in p:
+        return None, None
+    p = os.path.abspath(os.path.expanduser(p))
+    if os.path.isdir(p):
+        return p, None
+    if os.path.isfile(p):
+        return os.path.dirname(p), os.path.basename(p)
+    parent = os.path.dirname(p)
+    while parent and not os.path.isdir(parent):
+        up = os.path.dirname(parent)
+        if up == parent:
+            return None, None
+        parent = up
+    return (parent, None) if parent else (None, None)
+
+
 class FileTabMixin:
 
     # ── Construction ──────────────────────────────────────────────────────────
 
     def build_file_tab(self, parent: ttk.Frame) -> None:
         self._file_path:     tk.StringVar = tk.StringVar(value="")
+        # Dossier de départ du sélecteur (saisi par l'utilisateur, puis
+        # mis à jour avec le dossier du dernier fichier choisi).
+        self._file_dir:      tk.StringVar = tk.StringVar(value="")
         self._file_out_path: tk.StringVar = tk.StringVar(value="")
 
         outer = ttk.Frame(parent)
@@ -54,19 +84,44 @@ class FileTabMixin:
         pf = tk.Frame(outer, bg=C["card"],
                       highlightbackground=C["border"], highlightthickness=1)
         pf.grid(row=2, column=0, sticky="ew", pady=(0, 4))
-        pf.columnconfigure(1, weight=1)
+        pf.columnconfigure(2, weight=1)
 
         self._file_pick_btn = ttk.Button(
             pf, text="", style="Ghost.TButton", command=self._pick_file,
         )
-        self._file_pick_btn.grid(row=0, column=0, padx=(8, 0), pady=8)
+        self._file_pick_btn.grid(row=0, column=0, padx=(8, 0), pady=(8, 4))
 
+        # Champ « dossier » à côté du bouton : s'il est renseigné, le
+        # sélecteur s'ouvre dans ce dossier (Entrée = ouvrir le sélecteur).
+        self._file_dir_lbl = ttk.Label(
+            pf, text="", background=C["card"], foreground=C["muted"],
+            font=F["small"],
+        )
+        self._file_dir_lbl.grid(row=0, column=1, sticky="w", padx=(12, 6))
+
+        dir_frame = tk.Frame(
+            pf, bg=C["card"],
+            highlightbackground=C["border"], highlightthickness=1,
+        )
+        dir_frame.grid(row=0, column=2, sticky="ew", padx=(0, 8), pady=(8, 4))
+        self._file_dir_entry = tk.Entry(
+            dir_frame, textvariable=self._file_dir,
+            bg=C["card"], fg=C["text"], insertbackground=C["accent"],
+            relief="flat", font=F["body"], bd=4,
+            selectbackground=C["accent"],
+        )
+        self._file_dir_entry.pack(fill="x", expand=True)
+        self._file_dir_entry.bind("<Return>",   lambda _: self._pick_file())
+        self._file_dir_entry.bind("<KP_Enter>", lambda _: self._pick_file())
+
+        # Fichier sélectionné, sur sa propre ligne (chemins longs).
         self._file_src_lbl = ttk.Label(
             pf, textvariable=self._file_path,
             background=C["card"], foreground=C["muted"],
             font=F["body"], anchor="w",
         )
-        self._file_src_lbl.grid(row=0, column=1, sticky="ew", padx=12)
+        self._file_src_lbl.grid(row=1, column=0, columnspan=3,
+                                sticky="ew", padx=12, pady=(0, 8))
 
         # Fichier de sortie
         of = ttk.Frame(outer)
@@ -117,8 +172,17 @@ class FileTabMixin:
 
     def _pick_file(self) -> None:
         from tkinter import filedialog
+        if str(self._file_pick_btn["state"]) == "disabled":
+            return          # traduction en cours (Entrée dans le champ)
+        initialdir, initialfile = _dialog_start(self._file_dir.get())
+        opts: dict = {}
+        if initialdir:
+            opts["initialdir"] = initialdir
+        if initialfile:
+            opts["initialfile"] = initialfile
         path = filedialog.askopenfilename(
             title=self._t.get("file_pick_btn", "Choose file"),
+            **opts,
             filetypes=[
                 ("All supported", "*.txt *.html *.htm *.srt *.docx *.pdf"),
                 ("Text files",    "*.txt"),
@@ -131,6 +195,8 @@ class FileTabMixin:
         )
         if path:
             self._file_path.set(path)
+            # Le prochain « Choisir » repartira du dossier de ce fichier.
+            self._file_dir.set(os.path.dirname(os.path.abspath(path)))
             self._file_out_path.set("")
             self._file_src_lbl.configure(foreground=C["text"])
             self._file_open_btn.configure(state="disabled")
@@ -156,6 +222,7 @@ class FileTabMixin:
             text=self._t.get("file_translating", "…"), state="disabled",
         )
         self._file_pick_btn.configure(state="disabled")
+        self._file_dir_entry.configure(state="disabled")
         self._file_open_btn.configure(state="disabled")
         self._file_out_path.set("")
         self._file_progress.grid()
@@ -197,6 +264,7 @@ class FileTabMixin:
             state="normal",
         )
         self._file_pick_btn.configure(state="normal")
+        self._file_dir_entry.configure(state="normal")
         self.lbl_status.configure(text="")
 
         if err:

@@ -88,3 +88,34 @@ def save_settings(root_dir: str, **values) -> None:
             _json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
+
+
+# ── Point de départ des boîtes de sélection de fichier ───────
+def dialog_start(path: str) -> tuple[str | None, str | None]:
+    """
+    Déduit (initialdir, initialfile) pour filedialog à partir du chemin
+    saisi dans un champ texte :
+      • dossier existant   → on ouvre dedans ;
+      • fichier existant   → on ouvre son dossier, fichier présélectionné ;
+      • chemin inexistant  → on remonte au premier parent existant
+        (fichier renommé/déplacé, saisie partielle…) ;
+      • champ vide, URL, chemin inexploitable → (None, None) : la boîte
+        garde son comportement par défaut.
+    Tolère les guillemets autour du chemin (copier-coller depuis un
+    explorateur de fichiers) et le préfixe ~.
+    """
+    p = (path or "").strip().strip('"').strip("'").strip()
+    if not p or "://" in p:
+        return None, None
+    p = _os.path.abspath(_os.path.expanduser(p))
+    if _os.path.isdir(p):
+        return p, None
+    if _os.path.isfile(p):
+        return _os.path.dirname(p), _os.path.basename(p)
+    parent = _os.path.dirname(p)
+    while parent and not _os.path.isdir(parent):
+        up = _os.path.dirname(parent)
+        if up == parent:          # racine atteinte sans trouver de dossier
+            return None, None
+        parent = up
+    return (parent, None) if parent else (None, None)

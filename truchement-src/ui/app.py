@@ -362,7 +362,8 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
         utilisateur en locale fr traduit le plus souvent VERS le français
         (source en), et inversement pour une locale en. Pour toute autre
         locale, comportement inchangé : elle est présélectionnée comme
-        langue SOURCE, la cible restant le premier choix disponible.
+        langue SOURCE, la cible étant alors la langue de l'interface si
+        la paire existe (voir _on_src_change), sinon le premier choix.
         """
         lc = detect_locale_lang()
 
@@ -408,9 +409,23 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
                 return f"{name}  {via}"
             return name
 
-        targets = sorted(display(c) for c in MAPPING.get(code, []))
+        codes   = MAPPING.get(code, [])
+        targets = sorted(display(c) for c in codes)
         self.cb_tgt.configure(values=targets)
-        self.cb_tgt.set(targets[0] if targets else "")
+
+        # Cible par défaut : la langue de l'interface (fr, en…). Si la
+        # source EST déjà cette langue, repli sur l'autre du couple fr/en,
+        # puis sur le premier choix de la liste.
+        # Le libellé est choisi dans la liste Python `targets` construite
+        # ci-dessus — et NON relu depuis le widget : selon la version de
+        # Tk, cb_tgt["values"] peut revenir en chaîne Tcl brute ou en
+        # objets Tcl_Obj, sur lesquels la comparaison échouait.
+        # Les appelants qui imposent une cible (swap, locale, changement
+        # de langue d'UI) appellent _select_target() juste après : cette
+        # valeur par défaut est alors simplement écrasée.
+        preferred = self._ui if self._ui != code else ("fr" if code == "en" else "en")
+        default = display(preferred) if preferred in codes else ""
+        self.cb_tgt.set(default or (targets[0] if targets else ""))
 
     def _select_target(self, code: str) -> None:
         """
@@ -418,7 +433,10 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
         retrouvant son libellé exact dans les valeurs courantes (qui peuvent
         porter le suffixe pivot localisé).
         """
-        for value in self.cb_tgt["values"]:
+        # splitlist + str() : valeurs normalisées quel que soit le type
+        # renvoyé par Tk (tuple de str, chaîne Tcl, tuple de Tcl_Obj).
+        for value in self.tk.splitlist(self.cb_tgt["values"]):
+            value = str(value)
             if lang_code(value) == code:
                 self.cb_tgt.set(value)
                 return
@@ -684,6 +702,7 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
         self._file_lbl_title.configure(text=t.get("file_tab_title", "File Translation"))
         self._file_lbl_fmt.configure(text=t.get("file_formats", ""))
         self._file_pick_btn.configure(text=t.get("file_pick_btn", "📂  Choose file…"))
+        self._file_dir_lbl.configure(text=t.get("file_dir_label", "Folder:"))
         self._file_tr_btn.configure(text=t.get("file_translate_btn", "Translate file →"))
         self._file_open_btn.configure(text=t.get("file_open_btn", "📁  Open folder"))
         self._file_out_head.configure(text=t.get("file_out_label", "Output file") + " :")

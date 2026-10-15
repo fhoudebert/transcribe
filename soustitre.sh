@@ -97,6 +97,7 @@ fi
 
 # ── 3. Nettoyage ─────────────────────────────────────────────
 echo ""
+"$SCRIPT_DIR/build/python/venv/bin/python" "$SCRIPT_DIR/nettoyer-srt.py" "$SRT_OUT"
 echo "=== Nettoyage ==="
 #rm -f "$WAV_FILE"
 
