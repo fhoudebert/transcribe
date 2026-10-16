@@ -92,6 +92,16 @@ def build_style(root: tk.Tk) -> None:
         foreground=[("selected", "#FFF")],
     )
 
+    # Case à cocher (Texte 2 : serveur local)
+    s.configure("Llm.TCheckbutton", background=C["bg"], foreground=C["muted"],
+                font=F["small"], indicatorbackground=C["card"],
+                indicatorforeground="#FFF", focuscolor=C["bg"])
+    s.map("Llm.TCheckbutton",
+          background=[("active", C["bg"])],
+          foreground=[("selected", C["teal"]), ("active", C["text"])],
+          indicatorbackground=[("selected", C["accent"]),
+                               ("active", C["border"])])
+
     # Divers
     s.configure("TSeparator", background=C["border"])
     s.configure("TProgressbar", troughcolor=C["card"],

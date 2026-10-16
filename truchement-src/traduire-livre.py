@@ -151,6 +151,8 @@ class Stats:
         self.revisions_rejected = 0
         self.split_long = 0
         self.suspicious = 0
+        self.untranslated = 0
+        self.tags_rescued = 0
 
     def as_dict(self) -> dict:
         return dict(self.__dict__)
@@ -480,13 +482,30 @@ class Engine:
         h.update(text.encode("utf-8"))
         return h.hexdigest()
 
-    def _call_translate(self, text: str, temperature: float) -> tuple[str, bool]:
+    def _call_translate(self, text: str, temperature: float,
+                        generic: bool = False) -> tuple[str, bool]:
         c = self.client
+        if c.fmt == "translategemma" and generic:
+            # Consigne explicite (règle des balises comprise) dans un tour de
+            # parole Gemma : la consigne native de TranslateGemma ne dit rien
+            # des balises, que le modèle supprime alors volontiers.
+            return c.gemma_raw(prompt_translate(self.src, self.tgt, text,
+                                                self.glossary),
+                               text, temperature)
         if c.fmt == "translategemma":
             return c.gemma_raw(prompt_translategemma(self.src, self.tgt, text),
                                text, temperature)
         return c.chat(prompt_translate(self.src, self.tgt, text, self.glossary),
                       text, temperature)
+
+    def untranslated(self, source: str, out: str) -> bool:
+        """Le modèle a-t-il recopié l'original au lieu de le traduire ?"""
+        if self.src == self.tgt:
+            return False
+        def norm(t):
+            return re.sub(r"\W+", " ", re.sub(r"<[^>]+>", " ", t)).strip().lower()
+        a, b = norm(source), norm(out)
+        return len(a) > 20 and a == b
 
     def _call_revise(self, text: str, current: str, final: bool) -> tuple[str, bool]:
         c = self.client
@@ -496,28 +515,33 @@ class Engine:
             return c.gemma_raw(prompt, text, 0.1)
         return c.chat(prompt, text, 0.1)
 
-    def run(self, text: str, valid) -> str | None:
+    def run(self, text: str, valid, generic: bool = False) -> str | None:
         """
         Traduit *text* avec toutes les passes. *valid(sortie)* vérifie la
         structure (balises). Retourne None si la passe 1 est inexploitable
         (tronquée ou invalide) : l'appelant redécoupe.
+        *generic* : consigne explicite au lieu de la consigne native de
+        TranslateGemma (second essai quand les balises n'ont pas survécu).
         """
-        k = self.key(text)
+        k = self.key(("generic|" if generic else "") + text)
         cur = self.cache.get(k, 1)
         if cur is not None:
             STATS.cached += 1
         else:
             cur = None
             for temperature in (0.1, 0.35):
-                out, truncated = self._call_translate(text, temperature)
+                out, truncated = self._call_translate(text, temperature, generic)
                 out = clean_output(out)
                 if truncated or not out or not valid(out):
                     return None
-                if length_ok(text, out):
-                    cur = out
-                    break
-                cur = out          # 2e essai si longueur suspecte
-            if not length_ok(text, cur):
+                cur = out
+                if length_ok(text, out) and not self.untranslated(text, out):
+                    break          # sinon : 2e essai, un peu plus de température
+            if self.untranslated(text, cur):
+                STATS.untranslated += 1
+                log(f"  ⚠ bloc renvoyé NON TRADUIT par le modèle : "
+                    f"« {re.sub(r'\s+', ' ', re.sub(r'<[^>]+>', ' ', text)).strip()[:60]}… »")
+            elif not length_ok(text, cur):
                 STATS.suspicious += 1
                 log(f"  ⚠ longueur de traduction suspecte "
                     f"({len(text)} → {len(cur)} car.) : « {text[:60]}… »")
@@ -631,6 +655,15 @@ class Translator:
         self._group_fails = 0
         self._inline_fails = 0
 
+    def _run_tagged(self, text: str, valid) -> str | None:
+        """Texte balisé : consigne native, puis consigne explicite (TranslateGemma)."""
+        res = self.engine.run(text, valid)
+        if res is None and self.engine.client.fmt == "translategemma":
+            res = self.engine.run(text, valid, generic=True)
+            if res is not None:
+                STATS.tags_rescued += 1
+        return res
+
     def _inline_result(self, ok: bool) -> None:
         self._inline_fails = 0 if ok else self._inline_fails + 1
         if self.inline and self._inline_fails >= self.INLINE_FAIL_LIMIT:
@@ -665,7 +698,10 @@ class Translator:
             STATS.format_simplified += 1
             seg.apply_plain(self.plain_text(seg.plain))
             return
-        res = self.engine.run(seg.enc, seg.inline_ok)
+        if seg.has_tags:
+            res = self._run_tagged(seg.enc, seg.inline_ok)
+        else:
+            res = self.engine.run(seg.enc, seg.inline_ok)
         if seg.has_tags:
             self._inline_result(res is not None)
         if res is not None:
@@ -682,7 +718,8 @@ class Translator:
             return
         text = "\n".join(f'<seg n="{i}">{s.enc}</seg>'
                          for i, s in enumerate(segs, start=1))
-        res = self.engine.run(text, lambda o: parse_group(o, len(segs)) is not None)
+        res = self._run_tagged(text,
+                               lambda o: parse_group(o, len(segs)) is not None)
         if res is None:
             STATS.group_fallbacks += 1
             self._group_fails += 1
@@ -838,7 +875,10 @@ def make_segment(el) -> Segment:
         if len(stack) != 1:
             return None
         missing = set(slots) - used
-        if any(slots[n][0] == "g" for n in missing):
+        # Une paire <gN> ou un élément porteur de sens (saut de ligne,
+        # image) perdu → invalide ; seule une ancre vide peut être recasée.
+        if any(slots[n][0] == "g" or local(slots[n][1].name) in VOID | SKIP
+               for n in missing):
             return None
         # Ancres vides oubliées (repères de page, cibles de note) : remises
         # en tête plutôt que perdues — les liens qui les visent marchent encore.
@@ -1250,6 +1290,8 @@ def main() -> int:
     tr = Translator(engine, max_chars)
 
     plan = [(name, u) for name, units in book.chapters for u in units]
+    full_units = len(plan)
+    full_chars = sum(len(s.plain) for _, u in plan for s in u)
     if args.limit:
         plan = plan[:args.limit]
     unit_chars = [sum(len(s.plain) for s in u) for _, u in plan]
@@ -1267,7 +1309,9 @@ def main() -> int:
     if already:
         log(f"Reprise : {already} unité(s) déjà traduites dans le cache")
     if args.limit:
-        log(f"Mode essai : {len(plan)} unité(s) seulement")
+        pct = 100 * sum(len(s.plain) for _, u in plan for s in u) // max(full_chars, 1)
+        log(f"⚠ MODE ESSAI : {len(plan)} unité(s) sur {full_units} (~{pct} % du "
+            f"livre) — le reste sera laissé dans la langue d'origine")
     event("plan", units=len(plan), chars=total_chars, segments=n_segs,
           cached=already, chapters=n_chapters, mode=client.fmt,
           n_ctx=client.n_ctx, max_chars=max_chars)
@@ -1319,7 +1363,15 @@ def main() -> int:
         details.append(f"{s.revisions_rejected} révision(s) rejetée(s)")
     if s.suspicious:
         details.append(f"{s.suspicious} traduction(s) de longueur suspecte")
+    if s.untranslated:
+        details.append(f"{s.untranslated} bloc(s) renvoyé(s) non traduit(s)")
+    if s.tags_rescued:
+        details.append(f"{s.tags_rescued} bloc(s) balisé(s) repris avec la consigne explicite")
     log("  " + " · ".join(details))
+    if args.limit and len(plan) < full_units:
+        log(f"⚠ Essai terminé : seules les {len(plan)} premières unités sur "
+            f"{full_units} sont traduites dans {out.name}. Lancez « Traduire "
+            f"le livre » pour le livre entier (l'essai sera repris du cache).")
     event("end", out=str(out), stats=s.as_dict(), elapsed=int(elapsed))
     return 0
 

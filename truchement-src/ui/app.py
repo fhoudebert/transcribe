@@ -12,6 +12,7 @@ Responsabilités de cette classe :
   • Onglet 3 (fichier) via FileTabMixin
   • Onglet 4 (définition) via DefTabMixin
   • Onglet 5 (livre, serveur llama.cpp local) via BookTabMixin
+  • Serveur llama.cpp local : réglage global (⚙), utilisable par Texte 2
   • Traduction de texte (thread) + gestion d'erreurs
   • Rafraîchissement i18n complet
   • Sélection contextuelle de mot (_get_selected_word)
@@ -28,6 +29,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 import bootstrap
+import llm
 from config import (
     C, F, LANG_NAMES, MAPPING, PIVOT_PAIRS, lang_code, detect_locale_lang,
 )
@@ -40,6 +42,7 @@ from ui.file_tab import FileTabMixin
 from ui.def_tab import DefTabMixin
 from ui.book_tab import BookTabMixin
 from ui.about_window import AboutWindow
+from ui.llm_window import LlmSettingsWindow
 
 
 _ICON_SIZE = 36   # px — taille carrée affichée dans l'en-tête, à côté du titre
@@ -110,6 +113,14 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
         self.resizable(True, True)
 
         self._tabs: dict = {}
+
+        # Serveur llama.cpp local : réglages partagés par l'onglet Livre,
+        # Texte 2 (case « Serveur local ») et la fenêtre ⚙ — mêmes variables.
+        self._llm_settings: dict = llm.load_settings()
+        self._llm_url   = tk.StringVar(value=self._llm_settings["url"])
+        self._llm_model = tk.StringVar(value=self._llm_settings["model"])
+        self._llm_text_var = tk.BooleanVar(
+            value=bool(self._llm_settings.get("text_llm")))
         self._progress_timers: dict[str, str | None] = {}  # key -> after() id
         self._progress_starts: dict[str, float] = {}       # key -> time.monotonic()
 
@@ -290,6 +301,12 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
             command=self._open_about,
         )
         self.btn_about.pack(side="left", padx=(8, 0))
+
+        self.btn_llm = ttk.Button(
+            uif, text="⚙", style="Ghost.TButton", width=3,
+            command=lambda: LlmSettingsWindow(self),
+        )
+        self.btn_llm.pack(side="left", padx=(4, 0))
 
         ttk.Separator(self).pack(fill="x")
 
@@ -502,6 +519,9 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
         if not text:
             messagebox.showinfo(self._t["error_title"], self._t["no_text"])
             return
+        if idx == 1 and self._llm_text_var.get():
+            self._translate_llm(idx, src_c, tgt_c, text)
+            return
 
         btn = self._tabs[idx]["tr_btn"]
         btn.configure(text=self._t["translating"], state="disabled")
@@ -569,6 +589,83 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
         else:
             messagebox.showerror(t["error_title"],
                                  t["error_trans"].format(err=err))
+
+    # ── Serveur llama.cpp local ───────────────────────────────────────────────
+
+    def _llm_save(self) -> dict:
+        """Recopie les variables partagées dans les réglages et les enregistre."""
+        self._llm_settings.update({
+            "url": self._llm_url.get().strip() or llm.DEFAULTS["url"],
+            "model": self._llm_model.get().strip(),
+            "text_llm": bool(self._llm_text_var.get()),
+        })
+        llm.save_settings(self._llm_settings)
+        return dict(self._llm_settings)
+
+    def _llm_test(self, label, button) -> None:
+        """Teste le serveur en arrière-plan ; résultat affiché dans *label*."""
+        url = self._llm_url.get()
+        label.configure(text=self._t.get("book_testing", "…"),
+                        foreground=C["muted"])
+        button.configure(state="disabled")
+
+        def work() -> None:
+            ok, a, b = llm.probe_server(url)
+            if ok:
+                msg = self._t.get("book_server_ok", "✔ {model} · ctx {ctx}") \
+                    .format(model=a, ctx=b)
+                color = C["teal"]
+            else:
+                msg = self._t.get("book_server_ko", "✖ {err}").format(err=a)
+                color = "#FF6B6B"
+
+            def done() -> None:
+                try:
+                    label.configure(text=msg, foreground=color)
+                    button.configure(state="normal")
+                except tk.TclError:
+                    pass                     # fenêtre ⚙ refermée entre-temps
+            try:
+                self.after(0, done)
+            except tk.TclError:
+                pass
+
+        threading.Thread(target=work, daemon=True, name="llm-test").start()
+
+    def _translate_llm(self, idx: int, src_c: str, tgt_c: str, text: str) -> None:
+        """Texte 2, case « Serveur local » cochée : traduction par llama.cpp."""
+        settings = self._llm_save()
+        btn = self._tabs[idx]["tr_btn"]
+        btn.configure(text=self._t["translating"], state="disabled")
+        timer_key = f"text:{idx}"
+        self._start_progress_timer(
+            timer_key,
+            base_key="llm_translating",
+            elapsed_key="llm_translating_elapsed",
+            slow_key="llm_translating_elapsed",
+            timeout_soon_key="llm_translating_elapsed",
+            timeout_total=3600,
+        )
+
+        def run() -> None:
+            try:
+                result = llm.translate_text(text, src_c, tgt_c, settings)
+                self.after(0, lambda: self._set_result(idx, result))
+            except Exception as exc:          # noqa: BLE001 — message à l'utilisateur
+                self.after(0, lambda m=str(exc): self._on_llm_err(idx, m))
+
+        threading.Thread(target=run, daemon=True, name="llm-text").start()
+
+    def _on_llm_err(self, idx: int, err: str) -> None:
+        self._stop_progress_timer(f"text:{idx}")
+        self._tabs[idx]["tr_btn"].configure(
+            text=self._t["translate_btn"], state="normal",
+        )
+        self.lbl_status.configure(text="")
+        messagebox.showerror(
+            self._t["error_title"],
+            self._t.get("llm_error", "Local server: {err}").format(err=err),
+        )
 
     @staticmethod
     def _venv_missing_msg() -> str:
@@ -700,6 +797,8 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
             w["tr_btn"].configure(text=t["translate_btn"])
             w["cl_btn"].configure(text=t["clear_btn"])
             w["cp_btn"].configure(text=t["copy_btn"])
+            if w.get("llm_chk") is not None:
+                w["llm_chk"].configure(text=t.get("llm_check", "Local server"))
             w["def_src_btn"].configure(text=define_label)
             w["def_tgt_btn"].configure(text=define_label)
             w["src_menu"].entryconfigure(0, label=define_label)

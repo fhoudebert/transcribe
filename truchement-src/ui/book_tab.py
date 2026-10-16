@@ -17,7 +17,8 @@ Le script écrit deux sortes de lignes sur stdout :
 Indépendant des langues argostranslate : un modèle LLM traduit bien plus de
 paires que les paquets installés, d'où des sélecteurs source/cible propres à
 l'onglet (en → fr par défaut). Les réglages (URL, passes, taille des blocs…)
-sont mémorisés dans build/truchement-livre.json.
+sont partagés avec Texte 2 et la fenêtre ⚙ (voir llm.py) et mémorisés
+dans build/truchement-llm.json.
 """
 
 from __future__ import annotations
@@ -30,56 +31,17 @@ import sys
 import threading
 import time
 import tkinter as tk
-import urllib.request
 from tkinter import ttk, messagebox, filedialog
 
 import bootstrap
+import llm
 from config import C, F, LANG_NAMES, lang_code
 from ui.file_tab import _dialog_start
 
 
-_SCRIPT = "traduire-livre.py"
-_DEFAULTS = {
-    "url": "http://127.0.0.1:8080/v1",
-    "model": "",
-    "src": "en",
-    "tgt": "fr",
-    "passes": 2,
-    "max_chars": 2500,
-    "glossary": "",
-    "dir": "",
-}
 _TRIAL_UNITS = 10
 _JOURNAL_MAX_LINES = 2000
 _ERR_FG = "#FF6B6B"
-
-
-def _settings_path() -> str:
-    build = os.path.join(bootstrap.BASE_DIR, "build")
-    base = build if os.path.isdir(build) else bootstrap.BASE_DIR
-    return os.path.join(base, "truchement-livre.json")
-
-
-def _load_settings() -> dict:
-    data = dict(_DEFAULTS)
-    try:
-        with open(_settings_path(), encoding="utf-8") as fh:
-            saved = json.load(fh)
-        if isinstance(saved, dict):
-            data.update({k: v for k, v in saved.items() if k in _DEFAULTS})
-    except (OSError, ValueError):
-        pass
-    return data
-
-
-def _script_path() -> str | None:
-    candidates = [
-        os.path.join(bootstrap.BASE_DIR, _SCRIPT),
-        # Exécution depuis les sources : le script est à côté de main.py.
-        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                     _SCRIPT),
-    ]
-    return next((p for p in candidates if os.path.isfile(p)), None)
 
 
 def _python() -> str | None:
@@ -103,18 +65,12 @@ def _fmt_duration(sec) -> str:
     return f"{s} s"
 
 
-def _server_root(url: str) -> str:
-    root = url.strip().rstrip("/")
-    return root[:-3] if root.endswith("/v1") else root
-
-
 class BookTabMixin:
 
     # ── Construction ──────────────────────────────────────────────────────────
 
     def build_book_tab(self, parent: ttk.Frame) -> None:
-        st = _load_settings()
-        self._book_settings = st
+        st = self._llm_settings          # créé par TranslatorApp (partagé)
         self._book_proc: subprocess.Popen | None = None
         self._book_queue: queue.Queue = queue.Queue()
         self._book_stopping = False
@@ -122,8 +78,6 @@ class BookTabMixin:
         self._book_last_error = ""
 
         self._book_file = tk.StringVar(value="")
-        self._book_url = tk.StringVar(value=st["url"])
-        self._book_model = tk.StringVar(value=st["model"])
         self._book_chunk = tk.StringVar(value=str(st["max_chars"]))
         self._book_gloss = tk.StringVar(value=st["glossary"])
         self._book_dir = st["dir"]
@@ -200,7 +154,7 @@ class BookTabMixin:
         # Ligne 0 : serveur (+ bouton Tester) | résultat du test
         lbl(0, 0, "_book_lbl_url")
         c = cell(0, 1)
-        self._book_url_entry = entry(c, self._book_url)
+        self._book_url_entry = entry(c, self._llm_url)
         self._book_test_btn = ttk.Button(c, text="", style="Def.TButton",
                                          command=self._book_test_server)
         self._book_test_btn.pack(side="left", padx=(8, 0))
@@ -244,7 +198,7 @@ class BookTabMixin:
         )
         self._book_spin.pack(side="left")
         lbl(2, 2, "_book_lbl_model")
-        self._book_model_entry = entry(cell(2, 3), self._book_model)
+        self._book_model_entry = entry(cell(2, 3), self._llm_model)
 
         # Ligne 3 : glossaire (+ …) | aide
         lbl(3, 0, "_book_lbl_gloss")
@@ -381,68 +335,24 @@ class BookTabMixin:
         try:
             max_chars = int(self._book_chunk.get())
         except ValueError:
-            max_chars = _DEFAULTS["max_chars"]
+            max_chars = llm.DEFAULTS["max_chars"]
         max_chars = min(max(max_chars, 300), 12000)
         self._book_chunk.set(str(max_chars))
-        st = {
-            "url": self._book_url.get().strip() or _DEFAULTS["url"],
-            "model": self._book_model.get().strip(),
+        self._llm_settings.update({
             "src": lang_code(self._book_cb_src.get()) or "en",
             "tgt": lang_code(self._book_cb_tgt.get()) or "fr",
             "passes": max(self._book_cb_passes.current(), 0) + 1,
             "max_chars": max_chars,
             "glossary": self._book_gloss.get().strip(),
             "dir": self._book_dir or "",
-        }
-        self._book_settings = st
-        try:
-            with open(_settings_path(), "w", encoding="utf-8") as fh:
-                json.dump(st, fh, ensure_ascii=False, indent=2)
-        except OSError:
-            pass
-        return st
+        })
+        return self._llm_save()
 
     # ── Test du serveur ───────────────────────────────────────────────────────
 
     def _book_test_server(self) -> None:
-        root = _server_root(self._book_url.get())
         self._book_save_settings()
-        self._book_srv_lbl.configure(text=self._t.get("book_testing", "…"),
-                                     foreground=C["muted"])
-        self._book_test_btn.configure(state="disabled")
-
-        def work() -> None:
-            # urllib et non requests : ce process n'a pas forcément le venv.
-            opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-            try:
-                with opener.open(root + "/health", timeout=5) as r:
-                    r.read()
-                model, ctx = "?", "?"
-                try:
-                    with opener.open(root + "/props", timeout=5) as r:
-                        props = json.loads(r.read().decode("utf-8"))
-                    gen = props.get("default_generation_settings") or {}
-                    ctx = gen.get("n_ctx") or props.get("n_ctx") or "?"
-                    model = os.path.basename(props.get("model_path") or "") or "?"
-                except Exception:
-                    pass
-                msg = self._t.get("book_server_ok", "✔ {model} · ctx {ctx}") \
-                    .format(model=model, ctx=ctx)
-                color = C["teal"]
-            except Exception as exc:
-                reason = getattr(exc, "reason", None) or exc
-                msg = self._t.get("book_server_ko", "✖ {err}").format(err=reason)
-                color = _ERR_FG
-
-            def done() -> None:
-                self._book_srv_lbl.configure(text=msg, foreground=color)
-                self._book_test_btn.configure(state="normal")
-            try:
-                self.after(0, done)
-            except tk.TclError:
-                pass
-
-        threading.Thread(target=work, daemon=True, name="book-test").start()
+        self._llm_test(self._book_srv_lbl, self._book_test_btn)
 
     # ── Lancement / arrêt ─────────────────────────────────────────────────────
 
@@ -456,10 +366,10 @@ class BookTabMixin:
             messagebox.showinfo(t["error_title"],
                                 t.get("book_no_file", "Choose a book."))
             return
-        script = _script_path()
+        script = llm.script_path()
         if not script:
             messagebox.showerror(t["error_title"],
-                                 t.get("book_no_script", _SCRIPT + " ?"))
+                                 t.get("book_no_script", llm.SCRIPT_NAME + " ?"))
             return
         py = _python()
         if not py:

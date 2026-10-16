@@ -70,6 +70,14 @@ I18N: dict[str, dict[str, str]] = {
         "file_success": "File translated: {path}",
         "file_open_btn": "📁  Open folder",
         "file_formats": "Supported: .txt  .html  .srt  .docx  .pdf",
+        # ── serveur llama.cpp local (⚙, Texte 2)
+        "llm_title": "Local llama.cpp server",
+        "llm_hint": "Used by the Book tab and, when its “Local server” box is ticked, by Text 2 (passes and block size are those of the Book tab).",
+        "llm_close": "Close",
+        "llm_check": "Local server",
+        "llm_translating": "Translating with the local server…",
+        "llm_translating_elapsed": "Translating with the local server… {sec}s",
+        "llm_error": "Local server: {err}",
         # ── onglet Livre
         "tab5": "Book",
         "book_title": "Book translation",
@@ -188,6 +196,14 @@ I18N: dict[str, dict[str, str]] = {
         "file_success": "Fichier traduit : {path}",
         "file_open_btn": "📁  Ouvrir le dossier",
         "file_formats": "Formats : .txt  .html  .srt  .docx  .pdf",
+        # ── serveur llama.cpp local (⚙, Texte 2)
+        "llm_title": "Serveur llama.cpp local",
+        "llm_hint": "Utilisé par l'onglet Livre et, si sa case « Serveur local » est cochée, par Texte 2 (passes et taille des blocs : celles de l'onglet Livre).",
+        "llm_close": "Fermer",
+        "llm_check": "Serveur local",
+        "llm_translating": "Traduction par le serveur local…",
+        "llm_translating_elapsed": "Traduction par le serveur local… {sec}s",
+        "llm_error": "Serveur local : {err}",
         # ── onglet Livre
         "tab5": "Livre",
         "book_title": "Traduction de livre",
@@ -301,6 +317,14 @@ I18N: dict[str, dict[str, str]] = {
         "file_success": "Datei übersetzt: {path}",
         "file_open_btn": "📁  Ordner öffnen",
         "file_formats": "Formate: .txt  .html  .srt  .docx  .pdf",
+        # ── serveur llama.cpp local (⚙, Texte 2)
+        "llm_title": "Lokaler llama.cpp-Server",
+        "llm_hint": "Wird vom Tab Buch verwendet und, wenn das Kästchen „Lokaler Server“ aktiviert ist, von Text 2 (Durchgänge und Blockgröße wie im Tab Buch).",
+        "llm_close": "Schließen",
+        "llm_check": "Lokaler Server",
+        "llm_translating": "Übersetzung mit dem lokalen Server…",
+        "llm_translating_elapsed": "Übersetzung mit dem lokalen Server… {sec}s",
+        "llm_error": "Lokaler Server: {err}",
         # ── onglet Livre
         "tab5": "Buch",
         "book_title": "Buchübersetzung",
@@ -413,6 +437,14 @@ I18N: dict[str, dict[str, str]] = {
         "file_success": "Archivo traducido: {path}",
         "file_open_btn": "📁  Abrir carpeta",
         "file_formats": "Formatos: .txt  .html  .srt  .docx  .pdf",
+        # ── serveur llama.cpp local (⚙, Texte 2)
+        "llm_title": "Servidor llama.cpp local",
+        "llm_hint": "Lo usa la pestaña Libro y, si su casilla «Servidor local» está marcada, Texto 2 (pasadas y tamaño de bloque: los de la pestaña Libro).",
+        "llm_close": "Cerrar",
+        "llm_check": "Servidor local",
+        "llm_translating": "Traduciendo con el servidor local…",
+        "llm_translating_elapsed": "Traduciendo con el servidor local… {sec}s",
+        "llm_error": "Servidor local: {err}",
         # ── onglet Livre
         "tab5": "Libro",
         "book_title": "Traducción de libro",

@@ -70,6 +70,14 @@ def build_panel(app: "TranslatorApp", parent: ttk.Frame, idx: int) -> dict:  # t
         command=lambda i=idx: app._translate(i),
     )
     tr_btn.pack()
+    # Texte 2 seulement : traduction par le serveur llama.cpp local (⚙).
+    llm_chk = None
+    if idx == 1:
+        llm_chk = ttk.Checkbutton(
+            mc, text="", variable=app._llm_text_var,
+            style="Llm.TCheckbutton", command=app._llm_save,
+        )
+        llm_chk.pack(pady=(10, 0))
     ttk.Frame(mc).pack(expand=True, fill="both")
 
     # ── Colonne cible ─────────────────────────────────────────────────────────
@@ -123,6 +131,7 @@ def build_panel(app: "TranslatorApp", parent: ttk.Frame, idx: int) -> dict:  # t
         "lbl_s": lbl_s,   "lbl_t": lbl_t,
         "def_src_btn": def_src_btn, "def_tgt_btn": def_tgt_btn,
         "src_menu": src_menu,       "tgt_menu": tgt_menu,
+        "llm_chk": llm_chk,
     }
 
 

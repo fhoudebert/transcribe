@@ -62,6 +62,7 @@ Typical pipeline:
 - **Translate whole documents** — `.txt`, `.srt`, `.docx`, `.pdf`, and `.html` (HTML keeps its structure, styles and scripts intact; only visible text is translated).
 - **Translate a whole book** (`Book` tab) — `.epub` → `.epub`, `.pdf` → Markdown, `.txt` → `.txt` — with a local LLM served by [llama.cpp](https://github.com/ggml-org/llama.cpp) (e.g. TranslateGemma 12B). The book is cut into paragraph groups sized to the server's context, translated, then revised in a second (and optional third) bilingual pass; italics, notes, links and the table of contents are kept. Progress is cached as it goes: stop at any time and resume later. A *Trial* button translates the first 10 blocks to check quality before a run of several hours. Start the server first, for instance:
   `llama-server --model translategemma-12b-it-q4_k_m.gguf --alias translategemma-12b --host 127.0.0.1 --port 8080 --ctx-size 8192 --n-gpu-layers 99 --jinja`
+  The server address is set once (⚙ button, top right) and shared: tick *Local server* under the Translate button of **Text 2** to translate that tab with the LLM instead of Argos.
 - **Look up definitions** in offline monolingual dictionaries (English, French, Spanish, German, Italian, Portuguese… and more available), with full-text search. Select a word in a translation and jump straight to its definition.
 - **Interface in your language** — the UI adapts to your system locale and can be switched at any time.
 
