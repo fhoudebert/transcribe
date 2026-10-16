@@ -64,8 +64,10 @@ def build_style(root: tk.Tk) -> None:
         )
         s.map(
             f"{name}.TButton",
-            background=[("active", hover), ("pressed", bg)],
-            foreground=[("active", fg)],
+            # Un bouton désactivé (traduction en cours) doit le paraître.
+            background=[("disabled", C["card"]), ("active", hover),
+                        ("pressed", bg)],
+            foreground=[("disabled", C["muted"]), ("active", fg)],
         )
 
     _btn("Acc",    C["accent"], "#FFF",      C["acc_hi"])

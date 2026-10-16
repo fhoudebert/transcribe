@@ -11,6 +11,7 @@ Responsabilités de cette classe :
   • Onglets 1 et 2 (texte) via ui.panels
   • Onglet 3 (fichier) via FileTabMixin
   • Onglet 4 (définition) via DefTabMixin
+  • Onglet 5 (livre, serveur llama.cpp local) via BookTabMixin
   • Traduction de texte (thread) + gestion d'erreurs
   • Rafraîchissement i18n complet
   • Sélection contextuelle de mot (_get_selected_word)
@@ -37,6 +38,7 @@ from ui.styles import build_style
 from ui.panels import build_panel
 from ui.file_tab import FileTabMixin
 from ui.def_tab import DefTabMixin
+from ui.book_tab import BookTabMixin
 from ui.about_window import AboutWindow
 
 
@@ -94,7 +96,7 @@ def _load_header_icon() -> "tk.PhotoImage | None":
         return None
 
 
-class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
+class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
 
     def __init__(self) -> None:
         super().__init__()
@@ -156,6 +158,7 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
     # ── Fermeture ─────────────────────────────────────────────────────────────
 
     def _on_close(self) -> None:
+        self._book_shutdown()
         for key in list(self._progress_timers):
             self._stop_progress_timer(key)
         close_all_conns()
@@ -344,6 +347,10 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
         self._def_tab = ttk.Frame(self.nb, style="TFrame")
         self.nb.add(self._def_tab, text="")
         self.build_def_tab(self._def_tab)
+
+        self._book_tab = ttk.Frame(self.nb, style="TFrame")
+        self.nb.add(self._book_tab, text="")
+        self.build_book_tab(self._book_tab)
 
         # Barre de statut
         sbar = ttk.Frame(self, style="P.TFrame")
@@ -683,6 +690,7 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
         self.nb.tab(1, text=t["tab2"])
         self.nb.tab(2, text=t.get("tab3", "File"))
         self.nb.tab(3, text=t.get("tab4", "Definition"))
+        self.nb.tab(4, text=t.get("tab5", "Book"))
 
         define_label = t.get("define_btn", "📖 Define")
         for i in range(2):
@@ -717,3 +725,6 @@ class TranslatorApp(FileTabMixin, DefTabMixin, tk.Tk):
         self._def_exact_btn.configure(text=t.get("def_btn_exact", "Definition"))
         self._def_refresh_btn.configure(text=t.get("def_refresh", "↺"))
         self._def_show_hint()
+
+        # Onglet Livre
+        self._book_refresh_i18n()

@@ -60,6 +60,8 @@ Typical pipeline:
 
 - **Translate text** between dozens of language pairs (English, French, Spanish, German, Portuguese, Italian, Russian, Japanese, Chinese, Arabic and more), powered by [Argos Translate](https://github.com/argosopentech/argos-translate) — the same open models used by LibreTranslate.
 - **Translate whole documents** — `.txt`, `.srt`, `.docx`, `.pdf`, and `.html` (HTML keeps its structure, styles and scripts intact; only visible text is translated).
+- **Translate a whole book** (`Book` tab) — `.epub` → `.epub`, `.pdf` → Markdown, `.txt` → `.txt` — with a local LLM served by [llama.cpp](https://github.com/ggml-org/llama.cpp) (e.g. TranslateGemma 12B). The book is cut into paragraph groups sized to the server's context, translated, then revised in a second (and optional third) bilingual pass; italics, notes, links and the table of contents are kept. Progress is cached as it goes: stop at any time and resume later. A *Trial* button translates the first 10 blocks to check quality before a run of several hours. Start the server first, for instance:
+  `llama-server --model translategemma-12b-it-q4_k_m.gguf --alias translategemma-12b --host 127.0.0.1 --port 8080 --ctx-size 8192 --n-gpu-layers 99 --jinja`
 - **Look up definitions** in offline monolingual dictionaries (English, French, Spanish, German, Italian, Portuguese… and more available), with full-text search. Select a word in a translation and jump straight to its definition.
 - **Interface in your language** — the UI adapts to your system locale and can be switched at any time.
 
@@ -152,6 +154,7 @@ Everything the GUIs do is also scriptable. A few examples:
 | `audio2srt.sh` | audio/video → subtitle file |
 | `audio2en.sh` | audio in any language → English text |
 | `traduire-srt.sh` | translate an existing `.srt` |
+| `traduire-livre.py` | translate a book through a local llama.cpp server (run it with the venv's python; `--help` for options) |
 | `soustitre.sh` | full video → subtitled video pipeline |
 | `creerMKV.sh` / `inclure-srt.sh` | embed subtitle tracks into an `.mkv` |
 | `enregistrer.sh` | record from the microphone |
