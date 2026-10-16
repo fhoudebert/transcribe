@@ -111,6 +111,17 @@ class BookTabMixin:
             foreground=C["muted"], font=F["body"], anchor="w",
         )
         self._book_file_lbl.grid(row=0, column=1, sticky="ew", padx=(4, 12))
+        # État d'un travail commencé (en pause, interrompu, terminé…)
+        self._book_job_lbl = ttk.Label(
+            pf, text="", background=C["card"], foreground=C["gold"],
+            font=F["small"], anchor="w", wraplength=900, justify="left",
+        )
+        self._book_job_lbl.grid(row=1, column=0, columnspan=2, sticky="ew",
+                                padx=12, pady=(0, 8))
+        self._book_job_lbl.grid_remove()
+        self._book_job: dict = {}
+        self._book_pausing = False
+        self._book_close_after = False
 
         # Réglages — grille à 4 colonnes : libellé | champ | libellé | champ
         cfg = tk.Frame(outer, bg=C["card"],
@@ -177,6 +188,8 @@ class BookTabMixin:
         self._book_cb_tgt.pack(side="left", fill="x", expand=True)
         self._book_cb_src.set(LANG_NAMES.get(st["src"], LANG_NAMES["en"]))
         self._book_cb_tgt.set(LANG_NAMES.get(st["tgt"], LANG_NAMES["fr"]))
+        self._book_cb_tgt.bind("<<ComboboxSelected>>",
+                               lambda _: self._book_refresh_job())
 
         lbl(1, 2, "_book_lbl_passes")
         self._book_cb_passes = ttk.Combobox(cfg, values=[], state="readonly",
@@ -189,7 +202,7 @@ class BookTabMixin:
         lbl(2, 0, "_book_lbl_chunk")
         c = cell(2, 1)
         self._book_spin = tk.Spinbox(
-            c, from_=500, to=12000, increment=250, width=7,
+            c, from_=300, to=12000, increment=250, width=7,
             textvariable=self._book_chunk, bg=C["card"], fg=C["text"],
             disabledbackground=C["card"], disabledforeground=C["muted"],
             buttonbackground=C["panel"], insertbackground=C["accent"],
@@ -221,6 +234,10 @@ class BookTabMixin:
             command=lambda: self._book_start(_TRIAL_UNITS),
         )
         self._book_trial_btn.pack(side="left", padx=(0, 8))
+        self._book_pause_btn = ttk.Button(br, text="", style="Def.TButton",
+                                          command=self._book_pause,
+                                          state="disabled")
+        self._book_pause_btn.pack(side="left", padx=(0, 8))
         self._book_stop_btn = ttk.Button(br, text="", style="Ghost.TButton",
                                          command=self._book_stop,
                                          state="disabled")
@@ -258,6 +275,14 @@ class BookTabMixin:
         self._book_log.tag_configure("head", foreground=C["accent"])
         self._book_log.tag_configure("muted", foreground=C["muted"])
 
+        # Après un redémarrage : on retrouve le dernier livre et, s'il a un
+        # travail inachevé, le bouton devient « Reprendre ».
+        last = st.get("book") or ""
+        if last and os.path.isfile(last):
+            self._book_file.set(last)
+            self._book_file_lbl.configure(foreground=C["text"])
+            self.after_idle(self._book_refresh_job)
+
     # ── i18n ──────────────────────────────────────────────────────────────────
 
     def _book_refresh_i18n(self) -> None:
@@ -278,6 +303,7 @@ class BookTabMixin:
         self._book_trial_btn.configure(
             text=g("book_trial_btn", "Trial ({n} blocks)").format(n=_TRIAL_UNITS))
         self._book_stop_btn.configure(text=g("book_stop_btn", "■  Stop"))
+        self._book_pause_btn.configure(text=g("book_pause_btn", "⏸  Pause"))
         self._book_open_btn.configure(text=g("book_open_btn", "📁  Open folder"))
 
         cur = self._book_cb_passes.current()
@@ -290,6 +316,7 @@ class BookTabMixin:
         self._book_cb_passes.current(idx)
         if not os.path.isfile(self._book_file.get()):
             self._book_file.set(g("book_none", "No book selected"))
+        self._book_refresh_job()
 
     # ── Sélections ────────────────────────────────────────────────────────────
 
@@ -315,6 +342,7 @@ class BookTabMixin:
             self._book_file_lbl.configure(foreground=C["text"])
             self._book_open_btn.configure(state="disabled")
             self._book_out = ""
+            self._book_refresh_job()
 
     def _book_pick_glossary(self) -> None:
         initialdir, _ = _dialog_start(self._book_gloss.get() or self._book_dir)
@@ -330,6 +358,7 @@ class BookTabMixin:
         s, t = self._book_cb_src.get(), self._book_cb_tgt.get()
         self._book_cb_src.set(t)
         self._book_cb_tgt.set(s)
+        self._book_refresh_job()
 
     def _book_save_settings(self) -> dict:
         try:
@@ -345,6 +374,7 @@ class BookTabMixin:
             "max_chars": max_chars,
             "glossary": self._book_gloss.get().strip(),
             "dir": self._book_dir or "",
+            "book": self._book_file.get() if os.path.isfile(self._book_file.get()) else "",
         })
         return self._llm_save()
 
@@ -406,8 +436,10 @@ class BookTabMixin:
 
         self._book_proc = proc
         self._book_stopping = False
+        self._book_pausing = False
         self._book_out = ""
         self._book_last_error = ""
+        self._book_job_lbl.grid_remove()
         self._book_started = time.monotonic()
         self._book_set_running(True)
         self._book_progress.configure(maximum=1, value=0)
@@ -434,6 +466,7 @@ class BookTabMixin:
                   self._book_gloss_entry, self._book_spin):
             w.configure(state=on)
         self._book_stop_btn.configure(state=off)
+        self._book_pause_btn.configure(state=off)
 
     def _book_stop(self) -> None:
         proc = self._book_proc
@@ -454,6 +487,92 @@ class BookTabMixin:
                 proc.terminate()
             except OSError:
                 pass
+
+    # ── Travail en cours / pause / reprise ────────────────────────────────────
+
+    def _book_tgt(self) -> str:
+        return lang_code(self._book_cb_tgt.get()) or "fr"
+
+    def _book_refresh_job(self) -> None:
+        """Lit <livre>.<cible>.job.json et met l'onglet à jour (Reprendre…)."""
+        if self._book_proc is not None:
+            return                                   # notre propre travail
+        t = self._t
+        path = self._book_file.get()
+        job = llm.read_job(path, self._book_tgt()) if os.path.isfile(path) else {}
+        self._book_job = job
+        status = job.get("status")
+        if status == "running" and not llm.job_locked(path, self._book_tgt()):
+            status = "interrupted"     # coupure, extinction, processus tué…
+        fields = dict(
+            pct=job.get("pct", 0), done=job.get("done_units", 0),
+            total=job.get("units", "?"), created=job.get("created", "?"),
+            updated=job.get("updated", "?"),
+            out=os.path.basename(job.get("output", "")),
+        )
+        texts = {
+            "paused": t.get("book_job_paused", "⏸ Paused at {pct} %"),
+            "interrupted": t.get("book_job_interrupted", "⏸ Interrupted at {pct} %"),
+            "error": t.get("book_job_error", "✖ Stopped on an error at {pct} %"),
+            "running": t.get("book_job_running", "▶ Running in another process"),
+            "done": t.get("book_job_done", "✔ Already translated: {out}"),
+        }
+        resumable = status in ("paused", "interrupted", "error")
+        if status in texts:
+            msg = texts[status].format(**fields)
+            partial = job.get("partial") or ""
+            if resumable and partial and os.path.isfile(partial):
+                msg += "  ·  " + t.get("book_partial", "preview: {name}").format(
+                    name=os.path.basename(partial))
+                self._book_out = partial
+                self._book_open_btn.configure(state="normal")
+            elif status == "done" and os.path.isfile(job.get("output", "")):
+                self._book_out = job["output"]
+                self._book_open_btn.configure(state="normal")
+            color = {"done": C["teal"], "error": "#FF6B6B"}.get(status, C["gold"])
+            self._book_job_lbl.configure(text=msg, foreground=color)
+            self._book_job_lbl.grid()
+        else:
+            self._book_job_lbl.grid_remove()
+        self._book_go_btn.configure(
+            text=t.get("book_resume_btn", "Resume  →") if resumable
+            else t.get("book_translate_btn", "Translate book  →"),
+            state="disabled" if status == "running" else "normal",
+        )
+
+    def _book_pause(self) -> None:
+        """Pause propre : le script s'arrête après l'unité en cours."""
+        if self._book_proc is None or self._book_pausing:
+            return
+        if not llm.request_pause(self._book_file.get(), self._book_tgt()):
+            return
+        self._book_pausing = True
+        self._book_pause_btn.configure(state="disabled")
+        msg = self._t.get("book_pausing", "Pause requested…")
+        self._book_prog_lbl.configure(text=msg)
+        self._book_append(msg, "warn")
+
+    def _book_confirm_close(self) -> bool:
+        """
+        Fermeture de la fenêtre pendant une traduction. Retourne True si la
+        fenêtre peut être détruite tout de suite.
+        """
+        proc = self._book_proc
+        if proc is None or proc.poll() is not None:
+            return True
+        answer = messagebox.askyesnocancel(
+            self._t.get("title", "Truchement"),
+            self._t.get("book_close_running",
+                        "A translation is running. Pause it first?"),
+        )
+        if answer is None:
+            return False
+        if answer:                       # pause propre, puis fermeture
+            self._book_close_after = True
+            self._book_pause()
+            return False
+        self._book_shutdown()            # arrêt immédiat (état enregistré)
+        return True
 
     # ── Lecture de la sortie du script ────────────────────────────────────────
 
@@ -525,6 +644,10 @@ class BookTabMixin:
                                      pct, ev.get("eta"))
         elif kind == "end":
             self._book_out = ev.get("out", "")
+        elif kind == "paused":
+            if ev.get("partial"):
+                self._book_out = ev["partial"]
+            self._book_paused_pct = ev.get("pct", 0)
         elif kind == "error":
             self._book_last_error = ev.get("msg", "")
 
@@ -552,7 +675,15 @@ class BookTabMixin:
             self._book_prog_lbl.configure(text=msg)
             self.lbl_status.configure(text=msg)
             self.after(8000, lambda: self.lbl_status.configure(text=""))
-        elif self._book_stopping:
+        elif rc == 10:                                    # EXIT_PAUSED
+            msg = t.get("book_paused", "Paused.").format(
+                pct=getattr(self, "_book_paused_pct", 0))
+            self._book_append(msg, "warn")
+            self._book_prog_lbl.configure(text=msg)
+            self.lbl_status.configure(text="")
+            if self._book_out:
+                self._book_open_btn.configure(state="normal")
+        elif self._book_stopping or rc == 130:
             msg = t.get("book_stopped", "Stopped — run again to resume.")
             self._book_append(msg, "warn")
             self._book_prog_lbl.configure(text=msg)
@@ -563,7 +694,12 @@ class BookTabMixin:
                 msg += "\n" + self._book_last_error
             self._book_prog_lbl.configure(text=msg.split("\n")[0])
             self.lbl_status.configure(text="")
-            messagebox.showerror(t["error_title"], msg)
+            if not self._book_close_after:
+                messagebox.showerror(t["error_title"], msg)
+        self._book_pausing = False
+        self._book_refresh_job()
+        if self._book_close_after:                        # fermeture demandée
+            self.after(100, self._on_close)
 
     def _book_open_folder(self) -> None:
         path = self._book_out or self._book_file.get()

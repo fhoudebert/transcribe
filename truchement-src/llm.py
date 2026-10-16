@@ -39,6 +39,7 @@ DEFAULTS: dict = {
     "max_chars": 2500,
     "glossary": "",
     "dir": "",
+    "book": "",
     "text_llm": False,
 }
 
@@ -106,6 +107,65 @@ def probe_server(url: str, timeout: float = 5) -> tuple[bool, str, str]:
     except Exception:
         pass
     return True, model, ctx
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TRAVAIL EN COURS (fichiers écrits par traduire-livre.py à côté du livre)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def job_base(book: str, tgt: str) -> str:
+    """<livre sans extension>.<cible> — même convention que traduire-livre.py."""
+    return f"{os.path.splitext(book)[0]}.{tgt}"
+
+
+def read_job(book: str, tgt: str) -> dict:
+    try:
+        with open(job_base(book, tgt) + ".job.json", encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def job_locked(book: str, tgt: str) -> bool:
+    """Un processus vivant traduit-il ce livre (verrou .lock) ?"""
+    try:
+        with open(job_base(book, tgt) + ".lock", encoding="utf-8") as fh:
+            pid = int(fh.read().strip() or 0)
+    except (OSError, ValueError):
+        return False
+    return pid_alive(pid)
+
+
+def pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        handle = k32.OpenProcess(0x1000, False, pid)
+        if not handle:
+            return False
+        code = ctypes.c_ulong()
+        ok = k32.GetExitCodeProcess(handle, ctypes.byref(code))
+        k32.CloseHandle(handle)
+        return bool(ok) and code.value == 259          # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def request_pause(book: str, tgt: str) -> bool:
+    try:
+        with open(job_base(book, tgt) + ".pause", "w", encoding="utf-8") as fh:
+            fh.write("pause\n")
+        return True
+    except OSError:
+        return False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

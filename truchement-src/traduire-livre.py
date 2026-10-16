@@ -56,8 +56,18 @@ et lignes « @@{json} » de progression destinées à l'interface :
     @@{"ev":"progress","done":i,"units":N,"done_chars":c,"chars":C,"eta":s}
     @@{"ev":"end","out":"…","stats":{…}}
     @@{"ev":"error","msg":"…"}
+    @@{"ev":"paused","done":i,"units":N,"pct":p,"partial":"…"}
 Code de retour : 0 succès, 2 serveur injoignable / argument, 3 échec en
-cours de traduction, 130 interruption.
+cours de traduction, 4 livre déjà en cours ailleurs, 10 en pause,
+130 interruption (SIGTERM, arrêt du système).
+
+PAUSE ET REPRISE (même des jours plus tard, après redémarrage)
+───────────────────────────────────────────────────────────────
+Créer <livre>.<cible>.pause demande une pause propre : le script finit
+l'unité en cours, écrit un aperçu <sortie>.partiel.<ext>, note l'état dans
+<livre>.<cible>.job.json et sort (code 10). Relancer la même commande
+reprend : chaque segment déjà traduit est relu du cache, quel que soit le
+nouveau découpage (taille des blocs, contexte du serveur, modèle).
 """
 
 from __future__ import annotations
@@ -71,6 +81,7 @@ import json
 import os
 import posixpath
 import re
+import signal
 import sys
 import time
 import zipfile
@@ -188,6 +199,7 @@ class Cache:
                         continue
         path.parent.mkdir(parents=True, exist_ok=True)
         self._fh = open(path, "a", encoding="utf-8")
+        self._last_sync = time.monotonic()
 
     def get(self, key: str, p: int) -> str | None:
         return self.data.get((key, p))
@@ -197,8 +209,21 @@ class Cache:
         self._fh.write(json.dumps({"k": key, "p": p, "v": value},
                                   ensure_ascii=False) + "\n")
         self._fh.flush()
+        # flush() ne fait que passer au système : sans fsync, une coupure
+        # de courant ou un arrêt brutal peut perdre les dernières minutes.
+        if time.monotonic() - self._last_sync > 20:
+            self.sync()
+
+    def sync(self) -> None:
+        try:
+            self._fh.flush()
+            os.fsync(self._fh.fileno())
+        except (OSError, ValueError):
+            pass
+        self._last_sync = time.monotonic()
 
     def close(self) -> None:
+        self.sync()
         try:
             self._fh.close()
         except OSError:
@@ -655,6 +680,50 @@ class Translator:
         self._group_fails = 0
         self._inline_fails = 0
 
+    # ── Résultat final par segment ───────────────────────────────────────────
+    #
+    # Le cache des passes est indexé par le texte de l'UNITÉ envoyée au
+    # modèle : si le découpage change d'une session à l'autre (taille des
+    # blocs modifiée, serveur relancé avec un autre --ctx-size, autre
+    # modèle…), ces entrées ne servent plus. On garde donc AUSSI, pour chaque
+    # segment, sa traduction finale, indexée par son seul texte : la reprise
+    # ne dépend plus ni du découpage ni du modèle.
+
+    def _final_key(self, seg: Segment) -> str:
+        e = self.engine
+        return hashlib.sha1(
+            f"final|{e.src}|{e.tgt}|{seg.enc}".encode("utf-8")).hexdigest()
+
+    def _store_final(self, seg: Segment, value: str, encoded: bool) -> None:
+        self.engine.cache.put(self._final_key(seg), self.engine.passes,
+                              ("E:" if encoded else "P:") + value)
+
+    def final_of(self, seg: Segment) -> str | None:
+        k = self._final_key(seg)
+        for p in range(3, self.engine.passes - 1, -1):     # meilleure d'abord
+            v = self.engine.cache.get(k, p)
+            if v is not None:
+                return v
+        return None
+
+    def _apply_final(self, seg: Segment, v: str) -> bool:
+        kind, value = v[:2], v[2:]
+        if kind == "E:" and seg.inline_ok(value):
+            seg.apply(value)
+            return True
+        if kind == "P:":
+            seg.apply_plain(value)
+            return True
+        return False
+
+    def _done(self, seg: Segment, res: str | None, plain: str | None = None) -> None:
+        if res is not None:
+            seg.apply(res)
+            self._store_final(seg, res, True)
+        else:
+            seg.apply_plain(plain)
+            self._store_final(seg, plain, False)
+
     def _run_tagged(self, text: str, valid) -> str | None:
         """Texte balisé : consigne native, puis consigne explicite (TranslateGemma)."""
         res = self.engine.run(text, valid)
@@ -689,14 +758,18 @@ class Translator:
                           "(contexte --ctx-size trop petit ?)")
 
     def single(self, seg: Segment) -> None:
+        final = self.final_of(seg)
+        if final is not None and self._apply_final(seg, final):
+            STATS.cached += 1
+            return
         if len(seg.enc) > self.max_chars * 1.2:
             if seg.has_tags:
                 STATS.format_simplified += 1
-            seg.apply_plain(self.plain_text(seg.plain))
+            self._done(seg, None, self.plain_text(seg.plain))
             return
         if seg.has_tags and not self.inline:
             STATS.format_simplified += 1
-            seg.apply_plain(self.plain_text(seg.plain))
+            self._done(seg, None, self.plain_text(seg.plain))
             return
         if seg.has_tags:
             res = self._run_tagged(seg.enc, seg.inline_ok)
@@ -705,13 +778,25 @@ class Translator:
         if seg.has_tags:
             self._inline_result(res is not None)
         if res is not None:
-            seg.apply(res)
+            self._done(seg, res)
             return
         if seg.has_tags:
             STATS.format_simplified += 1
-        seg.apply_plain(self.plain_text(seg.plain))
+        self._done(seg, None, self.plain_text(seg.plain))
 
     def unit(self, segs: list[Segment]) -> None:
+        # Segments déjà traduits (session précédente, autre découpage) :
+        # appliqués tels quels ; seuls les autres partent au modèle.
+        pending = []
+        for seg in segs:
+            final = self.final_of(seg)
+            if final is not None and self._apply_final(seg, final):
+                STATS.cached += 1
+            else:
+                pending.append(seg)
+        if not pending:
+            return
+        segs = pending
         if len(segs) == 1 or not self.grouping:
             for s in segs:
                 self.single(s)
@@ -733,7 +818,7 @@ class Translator:
         self._group_fails = 0
         for s, part in zip(segs, parse_group(res, len(segs))):
             if s.inline_ok(part):
-                s.apply(part)
+                self._done(s, part)
             else:
                 self.single(s)
 
@@ -1197,6 +1282,113 @@ def default_output(source: Path, tgt: str, limit: int) -> Path:
     return source.with_name(f"{source.stem}.{tgt}{trial}{ext}")
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# TRAVAIL EN COURS : fichier de suivi, verrou, demande de pause
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Tout ce qu'il faut pour reprendre un autre jour vit À CÔTÉ DU LIVRE :
+#   <livre>.<cible>.cache.jsonl  les traductions (ajout seul, fsync régulier)
+#   <livre>.<cible>.job.json     réglages, avancement, état (running, paused,
+#                                interrupted, error, done) — lu par l'onglet
+#                                Livre pour proposer « Reprendre »
+#   <livre>.<cible>.pause        demande de pause (créée par l'interface) :
+#                                vérifiée entre deux unités, donc sans perdre
+#                                l'unité en cours
+#   <livre>.<cible>.lock         empêche deux traductions du même livre
+#   <livre>.<cible>.partiel.ext  livre reconstitué au moment de la pause :
+#                                début traduit, suite en langue d'origine
+
+EXIT_PAUSED = 10
+EXIT_LOCKED = 4
+
+
+def file_sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        handle = k32.OpenProcess(0x1000, False, pid)   # QUERY_LIMITED_INFORMATION
+        if not handle:
+            return False
+        code = ctypes.c_ulong()
+        ok = k32.GetExitCodeProcess(handle, ctypes.byref(code))
+        k32.CloseHandle(handle)
+        return bool(ok) and code.value == 259          # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+class Job:
+    def __init__(self, base: Path) -> None:
+        self.path = Path(str(base) + ".job.json")
+        self.pause_path = Path(str(base) + ".pause")
+        self.lock_path = Path(str(base) + ".lock")
+        self.data: dict = {}
+        try:
+            self.data = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            self.data = {}
+        self._last_save = 0.0
+
+    def lock(self) -> bool:
+        try:
+            pid = int(self.lock_path.read_text().strip() or 0)
+        except (OSError, ValueError):
+            pid = 0
+        if pid and pid != os.getpid() and pid_alive(pid):
+            return False
+        self.lock_path.write_text(str(os.getpid()))
+        return True
+
+    def unlock(self) -> None:
+        try:
+            self.lock_path.unlink()
+        except OSError:
+            pass
+
+    def pause_requested(self) -> bool:
+        return self.pause_path.exists()
+
+    def clear_pause(self) -> None:
+        try:
+            self.pause_path.unlink()
+        except OSError:
+            pass
+
+    def save(self, force: bool = True, **fields) -> None:
+        self.data.update(fields)
+        now = time.monotonic()
+        if not force and now - self._last_save < 30:
+            return
+        self._last_save = now
+        self.data["updated"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        tmp = self.path.with_name(self.path.name + ".tmp")
+        try:
+            tmp.write_text(json.dumps(self.data, ensure_ascii=False, indent=2),
+                           encoding="utf-8")
+            os.replace(tmp, self.path)
+        except OSError:
+            pass
+
+
+def partial_output(out: Path) -> Path:
+    return out.with_name(out.stem + ".partiel" + out.suffix)
+
+
 def main() -> int:
     global _LOGFILE
     ap = argparse.ArgumentParser(
@@ -1235,6 +1427,34 @@ def main() -> int:
         _LOGFILE = open(str(stem) + ".log", "a", encoding="utf-8")
     except OSError:
         _LOGFILE = None
+
+    base = Path(str(stem).replace(".essai", ""))
+    job = Job(base)
+    if not job.lock():
+        event("error", msg="ce livre est déjà en cours de traduction "
+                           "(autre fenêtre ou autre processus)")
+        log("✖ Ce livre est déjà en cours de traduction par un autre processus.")
+        return EXIT_LOCKED
+    try:
+        return run(args, source, out, base, job)
+    finally:
+        job.unlock()
+
+
+def run(args, source: Path, out: Path, base: Path, job: Job) -> int:
+    stem = out.with_suffix("")
+    # Une demande de pause restée d'une session précédente ne doit pas
+    # arrêter celle-ci dès le premier bloc.
+    job.clear_pause()
+
+    # Arrêt du système ou bouton Arrêter (SIGTERM) : sortie propre, cache
+    # synchronisé et état « interrupted » enregistré.
+    def _on_term(signum, frame):
+        raise KeyboardInterrupt
+    try:
+        signal.signal(signal.SIGTERM, _on_term)
+    except (ValueError, OSError, AttributeError):
+        pass
 
     try:
         import requests  # noqa: F401
@@ -1284,8 +1504,7 @@ def main() -> int:
         log(f"✖ Lecture du livre impossible : {exc}")
         return 2
 
-    cache = Cache(Path(str(stem).replace(".essai", "") + ".cache.jsonl"),
-                  fresh=args.fresh)
+    cache = Cache(Path(str(base) + ".cache.jsonl"), fresh=args.fresh)
     engine = Engine(client, cache, args.src, args.tgt, args.passes, glossary)
     tr = Translator(engine, max_chars)
 
@@ -1298,16 +1517,21 @@ def main() -> int:
     total_chars = sum(unit_chars) or 1
     n_segs = sum(len(u) for _, u in plan)
     already = sum(1 for _, u in plan
-                  if all(cache.get(engine.key(s.enc), args.passes) for s in u)
-                  or cache.get(engine.key("\n".join(
-                      f'<seg n="{i}">{s.enc}</seg>'
-                      for i, s in enumerate(u, 1))), args.passes))
+                  if all(tr.final_of(s) is not None for s in u))
     n_chapters = len({name for name, _ in plan})
     log(f"Découpe : {n_chapters} chapitre(s), {n_segs} segments, "
         f"{len(plan)} unités, {total_chars:,} car.".replace(",", "\u202f")
         .replace("\u202f ", ", "))
+    sha = file_sha256(source)
+    # Un travail terminé (ou --fresh) ne prête pas sa date de début au suivant.
+    previous = job.data if not args.fresh and job.data.get("status") != "done" else {}
+    if previous.get("sha256") and previous["sha256"] != sha:
+        log("⚠ Le livre a changé depuis le début de la traduction : les "
+            "paragraphes inchangés sont repris, les autres seront traduits.")
     if already:
-        log(f"Reprise : {already} unité(s) déjà traduites dans le cache")
+        since = previous.get("created")
+        since = f" (travail commencé le {since})" if since else ""
+        log(f"Reprise : {already} unité(s) sur {len(plan)} déjà traduites{since}")
     if args.limit:
         pct = 100 * sum(len(s.plain) for _, u in plan for s in u) // max(full_chars, 1)
         log(f"⚠ MODE ESSAI : {len(plan)} unité(s) sur {full_units} (~{pct} % du "
@@ -1316,20 +1540,63 @@ def main() -> int:
           cached=already, chapters=n_chapters, mode=client.fmt,
           n_ctx=client.n_ctx, max_chars=max_chars)
 
+    trial = bool(args.limit)
+    if not trial:
+        job.save(
+            book=str(source), sha256=sha, output=str(out),
+            src=args.src, tgt=args.tgt, passes=args.passes,
+            max_chars=args.max_chars, url=args.url, model=args.model,
+            glossary=args.glossary or "", format=args.format,
+            created=previous.get("created") or time.strftime("%Y-%m-%d %H:%M"),
+            status="running", pid=os.getpid(),
+            units=len(plan), done_units=already, chars=total_chars,
+        )
+
+    def stop_here(i_done: int, done_c: int, status: str, why: str) -> int:
+        """Pause ou interruption : état stable sur disque, puis sortie."""
+        cache.close()
+        partial = None
+        if not trial and i_done > 0:
+            try:
+                partial = partial_output(out)
+                book.write(partial)
+            except Exception as exc:          # noqa: BLE001
+                log(f"  (livre partiel non écrit : {exc})")
+                partial = None
+        pct = int(100 * done_c / max(total_chars, 1))
+        if not trial:
+            job.save(status=status, done_units=i_done, done_chars=done_c,
+                     pct=pct, partial=str(partial) if partial else "")
+        log(f"⏸ {why} après {i_done}/{len(plan)} unités ({pct} %). "
+            f"Reprise possible à tout moment, même après redémarrage.")
+        if partial:
+            log(f"  Aperçu du travail fait : {partial.name}")
+        event("paused", done=i_done, units=len(plan), pct=pct,
+              partial=str(partial) if partial else "", status=status)
+        return EXIT_PAUSED if status == "paused" else 130
+
     t0 = time.monotonic()
     done_chars = 0
     fresh_chars = 0
     current = None
     chapter_idx = 0
+    i_done = 0
     try:
         for i, ((name, unit), nch) in enumerate(zip(plan, unit_chars), start=1):
+            if job.pause_requested():
+                job.clear_pause()
+                return stop_here(i_done, done_chars, "paused", "En pause")
             if name != current:
                 current = name
                 chapter_idx += 1
                 log(f"[{chapter_idx}/{n_chapters}] {name}")
             calls_before = STATS.calls
             tr.unit(unit)
+            i_done = i
             done_chars += nch
+            if not trial:
+                job.save(force=False, done_units=i, done_chars=done_chars,
+                         pct=int(100 * done_chars / total_chars))
             if STATS.calls > calls_before:
                 fresh_chars += nch
             elapsed = time.monotonic() - t0
@@ -1343,14 +1610,23 @@ def main() -> int:
         log(f"✖ Arrêt : {exc}")
         log("  Les blocs déjà traduits sont conservés : relancez pour reprendre.")
         cache.close()
+        if not trial:
+            job.save(status="error", error=str(exc), done_units=i_done,
+                     done_chars=done_chars,
+                     pct=int(100 * done_chars / total_chars))
         return 3
     except KeyboardInterrupt:
-        log("Interrompu — relancez pour reprendre.")
-        cache.close()
-        return 130
+        return stop_here(i_done, done_chars, "interrupted", "Interrompu")
 
     cache.close()
     book.write(out)
+    if not trial:
+        try:
+            partial_output(out).unlink()
+        except OSError:
+            pass
+        job.save(status="done", done_units=len(plan), done_chars=total_chars,
+                 pct=100, partial="")
     elapsed = time.monotonic() - t0
     s = STATS
     log(f"✔ Terminé en {fmt_duration(elapsed)} : {out.name}")

@@ -169,7 +169,9 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
     # ── Fermeture ─────────────────────────────────────────────────────────────
 
     def _on_close(self) -> None:
-        self._book_shutdown()
+        # Traduction de livre en cours : proposer une pause propre d'abord.
+        if not self._book_confirm_close():
+            return
         for key in list(self._progress_timers):
             self._stop_progress_timer(key)
         close_all_conns()
