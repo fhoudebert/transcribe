@@ -64,8 +64,10 @@ def build_style(root: tk.Tk) -> None:
         )
         s.map(
             f"{name}.TButton",
-            background=[("active", hover), ("pressed", bg)],
-            foreground=[("active", fg)],
+            # Un bouton désactivé (traduction en cours) doit le paraître.
+            background=[("disabled", C["card"]), ("active", hover),
+                        ("pressed", bg)],
+            foreground=[("disabled", C["muted"]), ("active", fg)],
         )
 
     _btn("Acc",    C["accent"], "#FFF",      C["acc_hi"])
@@ -89,6 +91,16 @@ def build_style(root: tk.Tk) -> None:
         background=[("selected", C["accent"])],
         foreground=[("selected", "#FFF")],
     )
+
+    # Case à cocher (Texte 2 : serveur local)
+    s.configure("Llm.TCheckbutton", background=C["bg"], foreground=C["muted"],
+                font=F["small"], indicatorbackground=C["card"],
+                indicatorforeground="#FFF", focuscolor=C["bg"])
+    s.map("Llm.TCheckbutton",
+          background=[("active", C["bg"])],
+          foreground=[("selected", C["teal"]), ("active", C["text"])],
+          indicatorbackground=[("selected", C["accent"]),
+                               ("active", C["border"])])
 
     # Divers
     s.configure("TSeparator", background=C["border"])

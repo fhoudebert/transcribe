@@ -117,7 +117,9 @@ APPS: dict[str, dict] = {
         # (site-packages en TÊTE de sys.path, plus les variables
         # d'environnement d'argostranslate).
         "venv_site_packages": False,
-        "deploy_files": [],
+        # traduire-livre.py (onglet Livre) est exécuté par le python du venv
+        # depuis la racine, en sous-processus — comme traduire-srt.py.
+        "deploy_files": ["traduire-livre.py"],
     },
     "transcribe": {
         "srcdir": "transcribe-src",
