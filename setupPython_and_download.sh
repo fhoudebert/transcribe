@@ -4,9 +4,9 @@
 #
 #  À lancer UNE FOIS depuis la racine de l'application (clé exFAT incluse) :
 #
-#    1. Crée l'environnement Python portable (venv --copies, sans symlinks —
-#       indispensable sur exFAT/FAT32/NTFS) et installe les paquets de
-#       langues Argos Translate DIRECTEMENT sur la clé (build/argos-data).
+#    1. Installe le Python portable (python-build-standalone 3.12.15, dans
+#       build/python/linux, indépendant du Python du système) et les paquets
+#       de langues Argos Translate DIRECTEMENT sur la clé (build/argos-data).
 #    2. Télécharge les composants listés dans downloads.csv (modèles
 #       Whisper, dictionnaires…) via download-assistant s'il est présent,
 #       sinon via le repli shell download_from_csv.sh.
@@ -23,7 +23,7 @@ echo "📁 Répertoire de travail : $SCRIPT_DIR"
 
 echo ""
 echo "🚀 Étape 1 : environnement Python portable + paquets de langues..."
-bash "$SCRIPT_DIR/setup_venv_lang.sh"
+bash "$SCRIPT_DIR/setup_python.sh"
 echo "✅ Environnement Python prêt."
 
 echo ""

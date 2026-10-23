@@ -97,7 +97,10 @@ fi
 
 # ── 3. Nettoyage ─────────────────────────────────────────────
 echo ""
-"$SCRIPT_DIR/build/python/venv/bin/python" "$SCRIPT_DIR/nettoyer-srt.py" "$SRT_OUT"
+# Python portable de la clé (setup_python.sh) ; ancien venv en repli
+PY="$SCRIPT_DIR/build/python/linux/bin/python3.12"
+[ -x "$PY" ] || PY="$SCRIPT_DIR/build/python/venv/bin/python"
+"$PY" "$SCRIPT_DIR/nettoyer-srt.py" "$SRT_OUT"
 echo "=== Nettoyage ==="
 #rm -f "$WAV_FILE"
 

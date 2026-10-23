@@ -15,11 +15,13 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-VPY="$SCRIPT_DIR/build/python/venv/bin/python"
+# Python portable de la clé (setup_python.sh) ; ancien venv en repli.
+VPY="$SCRIPT_DIR/build/python/linux/bin/python3.12"
+[ -x "$VPY" ] || VPY="$SCRIPT_DIR/build/python/venv/bin/python"
 
 if [ ! -x "$VPY" ]; then
-    echo "❌ venv introuvable : $SCRIPT_DIR/build/python/venv"
-    echo "   Lancez d'abord setupPython_and_download.sh"
+    echo "❌ Python portable introuvable : $SCRIPT_DIR/build/python/linux"
+    echo "   Lancez d'abord setup_python.sh (ou setupPython_and_download.sh)"
     exit 1
 fi
 

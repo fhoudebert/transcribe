@@ -90,6 +90,9 @@ if [ -f "$DIR/$BASE_NAME.srt" ]; then
   mv "$DIR/$BASE_NAME.srt" "$SRT_FILE"
 fi
 
-"$SCRIPT_DIR/build/python/venv/bin/python" "$SCRIPT_DIR/nettoyer-srt.py" "$SRT_FILE"
+# Python portable de la clé (setup_python.sh) ; ancien venv en repli
+PY="$SCRIPT_DIR/build/python/linux/bin/python3.12"
+[ -x "$PY" ] || PY="$SCRIPT_DIR/build/python/venv/bin/python"
+"$PY" "$SCRIPT_DIR/nettoyer-srt.py" "$SRT_FILE"
 echo ""
 echo "Sous-titres générés : $SRT_FILE"

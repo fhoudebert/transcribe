@@ -4,14 +4,15 @@ La clé (exFAT recommandé) est **bi-OS** : les deux systèmes cohabitent.
 
 | Partagé entre Linux et Windows | Propre à chaque OS |
 |---|---|
-| paquets Argos (`build/argos-data/`), modèles Whisper, dictionnaires (`build/dic/`), `assets/`, `i18n/` | venv : `build/python/venv` (Linux) / `build\python\venv-windows` (Windows) ; binaires : `truchement` / `truchement.exe` |
+| paquets Argos (`build/argos-data/`), modèles Whisper, dictionnaires (`build/dic/`), `assets/`, `i18n/` | Python portable : `build/python/linux` / `build\python\windows` ; binaires : `truchement` / `truchement.exe` |
 
-## Prérequis (une fois par machine Windows servant au setup/compilation)
+## Prérequis
 
-Installer **Python 3.12** depuis <https://www.python.org/downloads/> en
-laissant cochés le lanceur `py` et tcl/tk. Les machines qui ne font
-qu'*utiliser* `truchement.exe` compilé n'ont pas besoin de Python : le
-binaire embarque son interpréteur et la stdlib complète.
+**Aucun Python à installer** : `setup_python.bat` télécharge un CPython
+3.12.15 complet et déplaçable (python-build-standalone, build « stripped »,
+tkinter compris) dans `build\python\windows`. Windows 10 1803 ou plus
+récent suffit (`curl.exe` et `tar.exe` intégrés). Un Python déjà installé
+sur la machine n'est ni utilisé ni modifié.
 
 **Sur toute machine utilisant transcribe** (même sans Python) : le
 runtime **Visual C++ x64** de Microsoft doit être présent —
@@ -24,8 +25,9 @@ présent, apporté par d'autres logiciels).
 ## 1. Setup — `setupPython_and_download.bat`
 
 Double-clic (ou depuis un terminal) à la racine de la clé :
-crée `build\python\venv-windows` en mode `--copies` (aucun lien symbolique,
-compatible exFAT), installe les dépendances, installe les paquets de
+lance `setup_python.bat`, qui installe le Python portable dans
+`build\python\windows` (somme SHA-256 vérifiée), y installe les dépendances
+de `requirements.txt`, installe les paquets de
 langues Argos **directement sur la clé** (partagés avec Linux : si le setup
 Linux les a déjà téléchargés, cette étape ne refait rien), puis télécharge
 modèles Whisper et dictionnaires (`downloads.csv`) via
@@ -35,7 +37,7 @@ Relançable sans risque après interruption.
 ## 2. Compilation — `compiler_truchement.bat`
 
 Compile avec PyInstaller via `compile_app.py` (stdlib complète embarquée —
-indispensable car argostranslate est chargé depuis le venv à l'exécution),
+indispensable car argostranslate est chargé depuis le Python portable à l'exécution),
 puis dépose à la racine : `truchement.exe`, `assets\` fusionnés, `i18n\`
 (préférence de langue `.locale` préservée). `compiler_transcribe.bat` et
 `compiler.bat` existent aussi.
@@ -52,5 +54,7 @@ Traduire un texte (ex. français → indonésien) ; premier lancement : le
 préchauffage tourne en arrière-plan, la barre d'état affiche « Moteur de
 traduction prêt ». L'onglet Définition doit lister les dictionnaires de
 `build\dic\`. En cas de souci, le bouton *Diagnostic* de l'application
-indique précisément le venv et les chemins inspectés (il vise
-`venv-windows` sous Windows).
+indique précisément le Python et les chemins inspectés (il vise
+`build\python\windows` sous Windows ; une clé préparée avec une version
+antérieure retombe sur l'ancien `venv-windows`, à supprimer une fois
+`setup_python.bat` relancé).

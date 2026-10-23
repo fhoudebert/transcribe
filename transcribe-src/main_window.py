@@ -163,18 +163,21 @@ class Transcribe(tk.Tk):
     @staticmethod
     def _python_exe() -> str:
         """
-        Retourne l'interpréteur Python du venv portable.
+        Retourne l'interpréteur Python portable de la clé.
 
-        La clé est bi-OS : les DEUX venvs peuvent être présents côte à
-        côte (build/python/venv pour Linux/Mac, build\\python\\venv-windows
-        pour Windows). Ne tester que les candidats de l'OS courant —
-        sous Windows, build/python/venv/bin/python3 est un binaire ELF
-        Linux parfaitement visible sur l'exFAT : le lancer donnerait
-        [WinError 193] %1 n'est pas une application Win32 valide.
+        La clé est bi-OS : les DEUX Pythons (python-build-standalone,
+        installés par setup_python.sh / .bat) sont côte à côte —
+        build/python/linux et build\\python\\windows. Ne tester que les
+        candidats de l'OS courant — sous Windows, build/python/linux/bin/
+        python3.12 est un binaire ELF Linux parfaitement visible sur
+        l'exFAT : le lancer donnerait [WinError 193] %1 n'est pas une
+        application Win32 valide. L'ancien venv (build/python/venv,
+        venv-windows) reste reconnu en repli.
 
         Ordre de recherche (OS courant uniquement) :
-          Windows : venv-windows\\Scripts\\python.exe, venv\\Scripts\\python.exe
-          Linux/Mac : venv/bin/python3, venv/bin/python
+          Windows : windows\\python.exe, venv-windows\\Scripts\\python.exe,
+                    venv\\Scripts\\python.exe
+          Linux : linux/bin/python3.12, venv/bin/python3, venv/bin/python
           puis sys.executable (dev non-frozen), puis python système.
         """
         # Racine = dossier du binaire (frozen) ou du script (dev)
@@ -185,16 +188,18 @@ class Transcribe(tk.Tk):
                 "TRANSCRIBE_BASE_DIR",
                 os.path.dirname(os.path.abspath(__file__)))
 
-        # Candidats du venv portable, propres à l'OS courant
+        # Candidats du Python portable, propres à l'OS courant
         pyroot = os.path.join(root, "build", "python")
         if IS_WINDOWS:
             candidates = (
+                os.path.join(pyroot, "windows", "python.exe"),
                 os.path.join(pyroot, "venv-windows", "Scripts",
                              "python.exe"),
                 os.path.join(pyroot, "venv", "Scripts", "python.exe"),
             )
         else:
             candidates = (
+                os.path.join(pyroot, "linux", "bin", "python3.12"),
                 os.path.join(pyroot, "venv", "bin", "python3"),
                 os.path.join(pyroot, "venv", "bin", "python"),
             )

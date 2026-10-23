@@ -9,20 +9,19 @@ Résout deux problèmes liés à PyInstaller --onefile :
   1. __file__ pointe vers le dossier temporaire _MEIPASS (éphémère) ;
      sys.executable pointe vers le binaire final déployé → source stable.
 
-  2. argostranslate / argostranslatefiles, installés dans le venv figé
-     livré sur la clé (build/python/venv), doivent être rendus visibles à
-     l'interpréteur qui exécute cette application (le Python du venv
-     lui-même en usage normal, ou l'exe PyInstaller figé en version
-     compilée).
+  2. argostranslate / argostranslatefiles, installés dans le Python
+     portable livré sur la clé (build/python/linux ou build/python/windows,
+     anciennement le venv build/python/venv), doivent être rendus visibles
+     à l'interpréteur qui exécute cette application (ce Python lui-même en
+     usage normal, ou l'exe PyInstaller figé en version compilée).
 
 STRATÉGIE ACTUELLE — injection sys.path directe
 ──────────────────────────────────────────────────
-Le venv est créé avec `python -m venv` sur la MÊME machine/OS que celle où
-il sera utilisé (ce n'est pas un binaire cross-compilé livré "tel quel" sur
-des architectures arbitraires) : le risque théorique d'incompatibilité ABI
-entre l'interpréteur qui importe argostranslate et les extensions natives
-du venv (sentencepiece, ctranslate2…) ne s'applique donc pas à ce mode de
-déploiement. Dans la pratique, tous les incidents réellement rencontrés
+L'exécutable figé est compilé (compile_app.py) avec le Python portable de
+la clé lui-même — CPython 3.12.15 de python-build-standalone, identique sur
+tous les postes : l'interpréteur qui importe argostranslate et les
+extensions natives installées (sentencepiece, ctranslate2…) partagent donc
+toujours la même ABI. Dans la pratique, tous les incidents réellement rencontrés
 (NO_LANGUAGES, "argostranslate n'est pas installé") provenaient de causes
 sans rapport avec l'ABI : variable ARGOS_PACKAGES_DIR jamais positionnée,
 symlinks cassés/déréférencés lors d'une copie sur clé USB, ou variables
@@ -63,36 +62,59 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-# ─── Localisation de l'interpréteur du venv figé ───────────────────────────────
+# ─── Localisation de l'interpréteur Python portable ────────────────────────────
+#
+# Depuis setup_python.sh / .bat, la clé porte un CPython COMPLET et déplaçable
+# (python-build-standalone) par système : build/python/linux et
+# build/python/windows, paquets installés directement dedans (pas de venv).
+# L'ancien venv (build/python/venv, build/python/venv-windows) reste reconnu
+# EN REPLI, pour qu'une clé préparée avant ce changement continue de marcher
+# tant que setup_python n'a pas été relancé. Les noms historiques VENV_*
+# sont conservés pour ne pas toucher aux modules qui les importent.
 
-def _venv_dirname(platform_os: str = os.name) -> str:
+def _python_dirnames(platform_os: str = os.name) -> list[str]:
     """
-    Nom du dossier venv selon l'OS : une clé bi-OS porte DEUX venvs frères
-    (build/python/venv pour Linux, build/python/venv-windows pour Windows),
-    car les extensions compilées (.so / .pyd) ne sont pas interchangeables.
-    Les données lourdes — paquets Argos, modèles, dictionnaires — sont en
+    Dossiers candidats sous build/python pour CET OS, par ordre de
+    préférence. Une clé bi-OS porte les deux Pythons côte à côte, car les
+    extensions compilées (.so / .pyd) ne sont pas interchangeables ; les
+    données lourdes — paquets Argos, modèles, dictionnaires — sont en
     revanche partagées entre les deux systèmes.
     """
-    return "venv-windows" if platform_os == "nt" else "venv"
+    if platform_os == "nt":
+        return ["windows", "venv-windows"]
+    return ["linux", "venv"]
 
 
-_VENV_DIR = os.path.join(BASE_DIR, "build", "python", _venv_dirname())
+def _pick_python_dirname() -> str:
+    """Premier dossier candidat présent ; à défaut le nouveau (pour les messages)."""
+    names = _python_dirnames()
+    for name in names:
+        if os.path.isdir(os.path.join(BASE_DIR, "build", "python", name)):
+            return name
+    return names[0]
 
-# Constantes publiques : chemin du venv actif pour cet OS, et sa forme
+
+_VENV_DIR = os.path.join(BASE_DIR, "build", "python", _pick_python_dirname())
+
+# Constantes publiques : dossier du Python actif pour cet OS, et sa forme
 # relative pour les messages destinés à l'utilisateur (UI, diagnostics).
 VENV_DIR: str = _VENV_DIR
-VENV_DIR_RELATIVE: str = os.path.join("build", "python", _venv_dirname())
+VENV_DIR_RELATIVE: str = os.path.join("build", "python", _pick_python_dirname())
 
 
 def _candidate_pythons(venv_dir: str) -> list[str]:
     """
-    Liste les emplacements plausibles de l'exécutable Python d'un venv,
-    Linux/macOS d'abord, puis Windows.
+    Liste les emplacements plausibles de l'exécutable Python : Python
+    portable (python-build-standalone) d'abord, puis disposition venv.
+    Sous Linux, setup_python.sh supprime les liens symboliques (exFAT) :
+    seul bin/python3.12 existe.
     """
     return [
-        os.path.join(venv_dir, "bin", "python"),          # Linux / macOS — cas nominal
+        os.path.join(venv_dir, "bin", "python3.12"),      # Python portable Linux
+        os.path.join(venv_dir, "python.exe"),             # Python portable Windows
+        os.path.join(venv_dir, "bin", "python"),          # ancien venv Linux
         os.path.join(venv_dir, "bin", "python3"),
-        os.path.join(venv_dir, "Scripts", "python.exe"),  # Windows
+        os.path.join(venv_dir, "Scripts", "python.exe"),  # ancien venv Windows
         os.path.join(venv_dir, "Scripts", "python3.exe"),
     ]
 
@@ -153,17 +175,16 @@ def _resolve_python_candidate(path: str) -> str | None:
 
 def _venv_has_own_site_packages(python_path: str, venv_dir: str) -> bool:
     """
-    Vérifie que *python_path* correspond bien au venv *venv_dir* lui-même
-    (présence de pyvenv.cfg et d'un dossier lib/.../site-packages), et non
-    à un Python système homonyme récupéré par erreur lors de la copie.
+    Vérifie que *python_path* correspond bien au Python préparé dans
+    *venv_dir*, et non à un Python système homonyme récupéré par erreur lors
+    de la copie : marqueur .complete posé par setup_python.sh / .bat (Python
+    portable), ou pyvenv.cfg (ancien venv).
 
-    Une absence de pyvenv.cfg n'est PAS automatiquement disqualifiante :
-    certains venv "embarqués" (python-build-standalone, pyoxidizer, etc.)
-    n'en génèrent pas. On se contente donc d'un avertissement implicite —
-    cette fonction n'est utilisée qu'à titre diagnostique, jamais pour
-    rejeter un candidat par ailleurs valide.
+    Utilisée à titre diagnostique seulement, jamais pour rejeter un
+    candidat par ailleurs valide.
     """
-    return os.path.isfile(os.path.join(venv_dir, "pyvenv.cfg"))
+    return (os.path.isfile(os.path.join(venv_dir, ".complete"))
+            or os.path.isfile(os.path.join(venv_dir, "pyvenv.cfg")))
 
 
 def _find_venv_python(venv_dir: str) -> str | None:
@@ -256,21 +277,21 @@ def diagnose_venv_python() -> dict:
             "genuine": False,
             "note": (
                 f"Aucun interpréteur Python trouvé sous {_VENV_DIR}. "
-                f"Vérifiez que le dossier {VENV_DIR_RELATIVE} a bien été "
-                f"copié intégralement (y compris ses sous-dossiers lib/ "
-                f"ou Lib/), au même niveau que l'exécutable."
+                f"Lancez setup_python.sh (Linux) ou setup_python.bat "
+                f"(Windows), ou vérifiez que le dossier {VENV_DIR_RELATIVE} "
+                f"a bien été copié intégralement, au même niveau que "
+                f"l'exécutable."
             ),
         }
     note = ""
     if not VENV_LOOKS_GENUINE:
         note = (
             f"L'interpréteur trouvé ({VENV_PYTHON}) ne semble pas être "
-            f"celui du venv préparé (pyvenv.cfg absent dans {_VENV_DIR}). "
-            f"Il s'agit peut-être du Python système, récupéré par erreur "
-            f"si un outil de copie a remplacé un lien symbolique par le "
-            f"fichier qu'il ciblait. Recopiez le dossier {VENV_DIR_RELATIVE} "
-            f"avec un outil qui préserve les liens symboliques "
-            f"(ex. 'cp -a' ou 'rsync -a' sous Linux/macOS)."
+            f"celui préparé par setup_python (ni .complete ni pyvenv.cfg "
+            f"dans {_VENV_DIR}) : installation interrompue, ou Python "
+            f"système récupéré par une copie qui a remplacé un lien "
+            f"symbolique. Relancez setup_python.sh (Linux) ou "
+            f"setup_python.bat (Windows)."
         )
     return {
         "found": True,

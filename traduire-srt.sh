@@ -1,7 +1,22 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ARGOS_BIN="${ARGOS_BIN:-build/python/venv/bin/argos-translate}"
+# argos-translate : ARGOS_BIN s'il est fourni, sinon le module du Python
+# portable de la clé (le script bin/argos-translate qu'installe pip porte un
+# shebang absolu, non déplaçable : on ne l'utilise pas).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PY="$SCRIPT_DIR/build/python/linux/bin/python3.12"
+[ -x "$PY" ] || PY="$SCRIPT_DIR/build/python/venv/bin/python"
+argos_translate() {
+    if [ -n "${ARGOS_BIN:-}" ]; then
+        "$ARGOS_BIN" "$@"
+    else
+        "$PY" -c 'import sys; from argostranslate.cli import main; sys.argv[0] = "argos-translate"; sys.exit(main())' "$@"
+    fi
+}
+if [ -z "${ARGOS_PACKAGES_DIR:-}" ] && [ -d "$SCRIPT_DIR/build/argos-data/packages" ]; then
+    export ARGOS_PACKAGES_DIR="$SCRIPT_DIR/build/argos-data/packages"
+fi
 
 INPUT="$1"
 FROM_LANG="${2:-en}"
@@ -44,7 +59,7 @@ BEGIN { RS=""; FS="\n" }
 split -l "$BATCH_SIZE" "$TEXT" "$TMPDIR/chunk_"
 
 for f in "$TMPDIR"/chunk_*; do
-    "$ARGOS_BIN" \
+    argos_translate \
         --from-lang "$FROM_LANG" \
         --to-lang "$TO_LANG" \
         < "$f" >> "$TRANS"

@@ -38,7 +38,7 @@ for _stream in (sys.stdout, sys.stderr):
 # ─────────────────────────────────────────────
 
 # Paquets argos de l'application, comme à l'installation par
-# setup_venv_lang.sh : cherchés à côté du script (déployé à la racine),
+# setup_python.sh : cherchés à côté du script (déployé à la racine),
 # sinon au niveau supérieur (exécution depuis transcribe-src en dev).
 _HERE = os.path.dirname(os.path.abspath(__file__))
 for _root in (_HERE, os.path.dirname(_HERE)):

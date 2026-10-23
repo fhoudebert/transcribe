@@ -672,10 +672,11 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
     @staticmethod
     def _venv_missing_msg() -> str:
         return (
-            f"Python venv not found at {bootstrap.VENV_DIR_RELATIVE}\n\n"
-            f"Le venv Python figé ({bootstrap.VENV_DIR_RELATIVE}) est introuvable à côté "
-            "de l'exécutable. Vérifiez que le dossier 'build' a bien été "
-            "copié sur la clé USB, au même niveau que l'application."
+            f"Portable Python not found at {bootstrap.VENV_DIR_RELATIVE}\n\n"
+            f"Le Python portable ({bootstrap.VENV_DIR_RELATIVE}) est introuvable à côté "
+            "de l'exécutable. Lancez setup_python.sh (Linux) ou "
+            "setup_python.bat (Windows), ou vérifiez que le dossier 'build' "
+            "a bien été copié sur la clé USB, au même niveau que l'application."
         )
 
     @staticmethod
@@ -710,12 +711,12 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
         sys.path / l'absence de module homonyme, pas réinstaller).
         """
         return (
-            f"Le venv ({bootstrap.VENV_DIR_RELATIVE}) fonctionne correctement — "
+            f"Le Python portable ({bootstrap.VENV_DIR_RELATIVE}) fonctionne correctement — "
             "argostranslate y est bien installé — mais son chargement a "
             "échoué dans le processus de l'application elle-même.\n\n"
             f"Détail technique : {detail}\n\n"
             "Cause probable : un module portant le même nom est chargé "
-            "depuis un autre emplacement avant celui du venv, ou un "
+            "depuis un autre emplacement avant celui du Python portable, ou un "
             "conflit de version d'une dépendance déjà importée dans ce "
             "process. Essayez de redémarrer l'application ; si le "
             "problème persiste, signalez ce message."

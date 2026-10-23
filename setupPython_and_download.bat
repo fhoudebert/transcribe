@@ -2,7 +2,8 @@
 rem ============================================================================
 rem  setupPython_and_download.bat - Installation complete Windows (cle neuve)
 rem  Pendant Windows de setupPython_and_download.sh :
-rem    1. environnement Python portable + paquets de langues Argos ;
+rem    1. Python portable (python-build-standalone 3.12.15, dans
+rem       build\python\windows, aucun Python installe requis) + langues Argos ;
 rem    2. composants de downloads.csv (modeles Whisper, dictionnaires) via
 rem       download-assistant.exe s'il est present, sinon le telechargeur
 rem       Python multiplateforme download_from_csv.py.
@@ -12,14 +13,14 @@ setlocal
 set "SCRIPT_DIR=%~dp0"
 
 echo === Etape 1 : environnement Python + langues ===
-call "%SCRIPT_DIR%setup_venv_lang.bat" || exit /b 1
+call "%SCRIPT_DIR%setup_python.bat" || exit /b 1
 
 echo.
 echo === Etape 2 : telechargement des composants (downloads.csv) ===
 if exist "%SCRIPT_DIR%download-assistant.exe" (
     "%SCRIPT_DIR%download-assistant.exe" || exit /b 1
 ) else (
-    "%SCRIPT_DIR%build\python\venv-windows\Scripts\python.exe" ^
+    "%SCRIPT_DIR%build\python\windows\python.exe" ^
         "%SCRIPT_DIR%download_from_csv.py" "%SCRIPT_DIR%downloads.csv" || exit /b 1
 )
 

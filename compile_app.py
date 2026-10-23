@@ -8,9 +8,10 @@ lanceurs. Une seule recette de compilation → aucune dérive entre OS.
 
 PRINCIPE DIRECTEUR — TAILLE MINIMALE
 ------------------------------------
-Le binaire est posé À CÔTÉ du venv figé (build/python/venv[-windows]) : tout
-paquet tiers présent dans ce venv n'a AUCUNE raison d'être copié une seconde
-fois dans l'exécutable. Trois règles en découlent :
+Le binaire est posé À CÔTÉ du Python portable de la clé (build/python/linux
+ou build/python/windows, python-build-standalone installé par setup_python) :
+tout paquet tiers présent dans ce Python n'a AUCUNE raison d'être copié une
+seconde fois dans l'exécutable. Trois règles en découlent :
 
   1. VENV_ONLY (ci-dessous) : liste d'exclusion couvrant les distributions de
      requirements.txt. PyInstaller analyse le bytecode et voit les imports
@@ -19,10 +20,10 @@ fois dans l'exécutable. Trois règles en découlent :
      libjpeg/libtiff/libwebp (≈ 24 Mio mesurés), et « from argostranslate
      import translate » embarque ctranslate2 (≈ 37 Mio de roue). Ces paquets
      sont résolus À L'EXÉCUTION :
-       • truchement : bootstrap.py injecte le site-packages du venv dans
+       • truchement : bootstrap.py injecte le site-packages du Python portable dans
          sys.path → argostranslate, argostranslatefiles, bs4, Pillow…
          restent pleinement disponibles, sans perte de fonctionnalité ;
-       • transcribe : le venv est appelé en SOUS-PROCESSUS (traduire-srt.py,
+       • transcribe : le Python portable est appelé en SOUS-PROCESSUS (traduire-srt.py,
          whisper, ffmpeg) ; le process GUI lui-même n'utilise que la stdlib
          et, si présent, Pillow — dont chaque import est protégé par
          « except ImportError » avec repli tk.PhotoImage (cf. main_window.py,
@@ -30,7 +31,7 @@ fois dans l'exécutable. Trois règles en découlent :
          redimensionnement des icônes, jamais le fonctionnement.
 
   2. Stdlib complète : embarquée pour TRUCHEMENT SEULEMENT. Argostranslate
-     est chargé depuis le venv à l'exécution, donc l'analyse statique de
+     est chargé depuis le Python portable à l'exécution, donc l'analyse statique de
      PyInstaller ne voit pas sa chaîne d'imports et le premier module stdlib
      manquant casse la première traduction :
          ModuleNotFoundError: No module named 'pickletools'
@@ -46,8 +47,10 @@ fois dans l'exécutable. Trois règles en découlent :
      racine par la phase de déploiement ci-dessous.
 
 Ce que fait ce script, dans l'ordre :
-  1. Vérifie qu'il tourne bien dans le venv de la clé (sinon message clair).
-  2. Installe PyInstaller dans le venv s'il manque.
+  1. Vérifie qu'il tourne bien avec le Python portable de la clé (sinon
+     message clair) : c'est lui qui porte PyInstaller et les extensions
+     compilées, et sa version doit être celle que le binaire chargera.
+  2. Installe PyInstaller dans ce Python s'il manque.
   3. Compile en onefile avec la recette minimale ci-dessus.
   4. Déploie à la racine : binaire, assets/ fusionnés (sans écraser ceux de
      l'autre application), i18n/ (en préservant .locale, la préférence de
@@ -69,7 +72,7 @@ APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 IS_WINDOWS = os.name == "nt"
 IS_LINUX = sys.platform.startswith("linux")
 
-# ── Paquets fournis par le venv figé → jamais embarqués ───────────────────────
+# ── Paquets fournis par le Python portable → jamais embarqués ───────────────────────
 # Noms d'IMPORT (et non de distribution) de ce que porte requirements.txt, y
 # compris les dépendances transitives lourdes. Exclure un paquet absent du
 # graphe est sans effet ni avertissement : la liste peut donc rester commune
@@ -94,7 +97,7 @@ VENV_ONLY: list[str] = [
     "PyQt5", "rich", "pygments", "markdown_it", "mdurl", "click", "typer",
     "shellingham", "tqdm", "jinja2", "markupsafe", "matplotlib",
     # Réseau : les applications sont hors-ligne ; requests n'est tiré que par
-    # argostranslate.package, résolu depuis le venv
+    # argostranslate.package, résolu depuis le Python portable
     "requests", "urllib3", "certifi", "idna", "charset_normalizer",
     "httpx", "httpcore", "h11", "anyio",
     # Outillage de build / packaging : pip et setuptools traînent tout
@@ -110,14 +113,14 @@ APPS: dict[str, dict] = {
         "srcdir": "truchement-src",
         "entry": "main.py",
         "icon": os.path.join("assets", "dico.png"),
-        # argostranslate est importé dans CE process depuis le venv
+        # argostranslate est importé dans CE process depuis le Python portable
         # (bootstrap.py) → l'analyse statique ne voit pas sa chaîne d'imports.
         "full_stdlib": True,
         # Inutile : bootstrap.py fait déjà l'injection, plus finement
         # (site-packages en TÊTE de sys.path, plus les variables
         # d'environnement d'argostranslate).
         "venv_site_packages": False,
-        # traduire-livre.py (onglet Livre) est exécuté par le python du venv
+        # traduire-livre.py (onglet Livre) est exécuté par le python du Python portable
         # depuis la racine, en sous-processus — comme traduire-srt.py.
         "deploy_files": ["traduire-livre.py"],
     },
@@ -125,22 +128,22 @@ APPS: dict[str, dict] = {
         "srcdir": "transcribe-src",
         "entry": "transcribe.py",
         "icon": os.path.join("assets", "icon.png"),
-        # Aucun tiers chargé dans le process GUI : le venv n'est appelé qu'en
+        # Aucun tiers chargé dans le process GUI : le Python portable n'est appelé qu'en
         # sous-processus, l'analyse statique de PyInstaller suffit.
         "full_stdlib": False,
-        # Désactivé, à dessein. Activer ce hook rendrait Pillow (du venv) de
+        # Désactivé, à dessein. Activer ce hook rendrait Pillow (du Python portable) de
         # nouveau visible sans l'embarquer — les icônes retrouveraient le
         # redimensionnement LANCZOS au lieu du repli tk.PhotoImage/subsample.
         # MAIS : mesuré, « from PIL import Image » échoue alors sur
         #     ModuleNotFoundError: No module named '__future__'
-        # car importer du code du venv ramène le problème de truchement — le
+        # car importer du code du Python portable ramène le problème de truchement — le
         # binaire doit porter la stdlib COMPLÈTE. Le couple hook +
         # full_stdlib fonctionne (vérifié), au prix de 11,6 → 15,9 Mio.
         # Passer LES DEUX à True si la qualité des icônes vaut ces 4,3 Mio ;
         # activer celui-ci seul produirait un binaire cassé.
         "venv_site_packages": False,
         # Fichiers copiés tels quels du srcdir vers la racine au déploiement :
-        # traduire-srt.py est exécuté par le python du venv depuis la racine
+        # traduire-srt.py est exécuté par le python du Python portable depuis la racine
         # (<racine>/traduire-srt.py), pas depuis le bundle PyInstaller.
         "deploy_files": ["traduire-srt.py", "nettoyer-srt.py"],
     },
@@ -197,9 +200,9 @@ def stdlib_hidden_imports() -> list[str]:
 _VENV_RTHOOK = '''\
 # Généré par compile_app.py — ne pas éditer.
 #
-# Rend visibles les paquets du venv figé de la clé SANS les embarquer dans le
+# Rend visibles les paquets du Python portable de la clé SANS les embarquer dans le
 # binaire : le site-packages est ajouté EN QUEUE de sys.path, donc les modules
-# gelés gardent toujours la priorité et le venv ne peut rien masquer. Seuls
+# gelés gardent toujours la priorité et le Python portable ne peut rien masquer. Seuls
 # les imports que le binaire ne satisfait pas (Pillow, par exemple) y sont
 # résolus. Aucun effet si la clé est incomplète : l'application retombe sur
 # ses replis habituels (except ImportError).
@@ -208,13 +211,17 @@ import os
 import sys
 
 _base = os.path.dirname(os.path.abspath(sys.executable))
-_venv = os.path.join(_base, "build", "python")
-for _cand in (
-    glob.glob(os.path.join(_venv, "venv", "lib", "python3.*", "site-packages"))
-    + glob.glob(os.path.join(_venv, "venv", "lib64", "python3.*", "site-packages"))
-    + [os.path.join(_venv, "venv-windows", "Lib", "site-packages"),
-       os.path.join(_venv, "venv", "Lib", "site-packages")]
-):
+_py = os.path.join(_base, "build", "python")
+if os.name == "nt":
+    _cands = [os.path.join(_py, "windows", "Lib", "site-packages"),
+              os.path.join(_py, "venv-windows", "Lib", "site-packages")]
+else:
+    _cands = (
+        glob.glob(os.path.join(_py, "linux", "lib", "python3.*", "site-packages"))
+        + glob.glob(os.path.join(_py, "venv", "lib", "python3.*", "site-packages"))
+        + glob.glob(os.path.join(_py, "venv", "lib64", "python3.*", "site-packages"))
+    )
+for _cand in _cands:
     if os.path.isdir(_cand) and _cand not in sys.path:
         sys.path.append(_cand)
 '''
@@ -228,11 +235,24 @@ def venv_runtime_hook(tmpdir: str) -> str:
     return path
 
 
+def running_key_python() -> bool:
+    """Vrai si l'interpréteur courant est celui de la clé : Python portable
+    (build/python/linux | windows) ou ancien venv (sys.prefix != base_prefix)."""
+    if sys.prefix != sys.base_prefix:
+        return True
+    portable = os.path.join(APP_ROOT, "build", "python",
+                            "windows" if IS_WINDOWS else "linux")
+    try:
+        return os.path.samefile(sys.prefix, portable)
+    except OSError:
+        return False
+
+
 def ensure_pyinstaller() -> None:
     try:
         import PyInstaller  # noqa: F401
     except ImportError:
-        print("PyInstaller absent du venv, installation...")
+        print("PyInstaller absent du Python portable, installation...")
         subprocess.run(
             [sys.executable, "-m", "pip", "install", "pyinstaller"], check=True
         )
@@ -243,7 +263,7 @@ def icon_args(srcdir: str, icon_rel: str) -> list[str]:
     Sous Windows, PyInstaller exige un .ico (ou Pillow pour convertir) ;
     sous Linux, --icon est ignoré. On ne passe l'option que si elle a une
     chance d'aboutir, plutôt que de faire échouer toute la compilation.
-    (Pillow n'est utilisé qu'ICI, à la compilation : il reste dans le venv et
+    (Pillow n'est utilisé qu'ICI, à la compilation : il reste dans le Python portable et
     n'entre pas dans le binaire — cf. VENV_ONLY.)
     """
     path = os.path.join(srcdir, icon_rel)
@@ -298,14 +318,15 @@ def main(argv: list[str]) -> int:
     name, cfg = argv[1], APPS[argv[1]]
     srcdir = os.path.join(APP_ROOT, cfg["srcdir"])
 
-    # Le script doit tourner avec le python du venv de la clé (c'est lui qui
+    # Le script doit tourner avec le Python portable de la clé (c'est lui qui
     # porte PyInstaller et dont la version doit correspondre aux extensions
-    # compilées du venv). sys.prefix != base_prefix ⇔ on est dans un venv.
-    if sys.prefix == sys.base_prefix:
-        venv_rel = os.path.join("build", "python",
-                                "venv-windows" if IS_WINDOWS else "venv")
-        print(f"[ERREUR] À lancer avec le python du venv de la clé "
-              f"({venv_rel}) — utilisez compiler_{name}.bat / .sh")
+    # compilées qu'il héberge) — ou, en repli, avec l'ancien venv.
+    if not running_key_python():
+        py_rel = os.path.join("build", "python",
+                              "windows" if IS_WINDOWS else "linux")
+        print(f"[ERREUR] À lancer avec le Python portable de la clé "
+              f"({py_rel}, installé par setup_python) — utilisez "
+              f"compiler_{name}.bat / .sh")
         return 1
 
     ensure_pyinstaller()
@@ -317,7 +338,7 @@ def main(argv: list[str]) -> int:
     cmd = [sys.executable, "-m", "PyInstaller",
            "--onefile", "--noconfirm", "--windowed", "--name", name,
            # -OO sur les seuls modules embarqués : supprime docstrings et
-           # assertions (sans effet sur le code chargé du venv à l'exécution).
+           # assertions (sans effet sur le code chargé du Python portable à l'exécution).
            "--optimize", "2"]
 
     # --strip : retire les tables de symboles des .so collectés. Gain net sous
@@ -341,7 +362,7 @@ def main(argv: list[str]) -> int:
               f"modules" if cfg["full_stdlib"]
               else "stdlib non embarquée (inutile ici)")
     print(f"Compilation de {name} ({detail} ; "
-          f"{len(VENV_ONLY)} paquets laissés au venv)...")
+          f"{len(VENV_ONLY)} paquets laissés au Python portable)...")
     try:
         subprocess.run(cmd, cwd=srcdir, check=True)
     finally:

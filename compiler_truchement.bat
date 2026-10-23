@@ -5,9 +5,11 @@ rem  compile_app.py (multiplateforme) : stdlib complete embarquee, cf.
 rem  commentaires du script (ModuleNotFoundError pickletools sinon).
 setlocal
 set "SCRIPT_DIR=%~dp0"
-set "VPY=%SCRIPT_DIR%build\python\venv-windows\Scripts\python.exe"
+rem Python portable de la cle (setup_python.bat) ; ancien venv en repli.
+set "VPY=%SCRIPT_DIR%build\python\windows\python.exe"
+if not exist "%VPY%" set "VPY=%SCRIPT_DIR%build\python\venv-windows\Scripts\python.exe"
 if not exist "%VPY%" (
-    echo [ERREUR] venv Windows introuvable : lancez d'abord setupPython_and_download.bat
+    echo [ERREUR] Python portable introuvable : lancez d'abord setup_python.bat
     exit /b 1
 )
 "%VPY%" "%SCRIPT_DIR%compile_app.py" truchement || exit /b 1
