@@ -75,8 +75,9 @@ def build_style(root: tk.Tk) -> None:
     _btn("Ghost",  C["panel"],  C["muted"],  C["border"])
     _btn("Def",    C["card"],   C["teal"],   C["border"])
     _btn("Search", C["accent"], "#FFF",      C["acc_hi"])
-    # « Détecter », à droite du sélecteur de langue source : couleurs de
-    # Swap, mais à la hauteur du combobox pour ne pas décaler la barre.
+    # « Détecter » et « Inverser », sur la ligne des sélecteurs de langue :
+    # couleurs de Swap, mais à la hauteur du combobox pour ne pas décaler
+    # la barre ; même style pour que les deux boutons aient la même hauteur.
     _btn("Detect", C["swap"],   C["teal"],   C["border"])
     s.configure("Detect.TButton", padding=(12, 1))
 

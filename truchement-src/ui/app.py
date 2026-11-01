@@ -333,41 +333,40 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
         lb.pack(fill="x")
         li = ttk.Frame(lb, style="P.TFrame")
         li.pack(fill="x", padx=20, pady=14)
-        li.columnconfigure(0, weight=1)
-        li.columnconfigure(2, weight=1)
 
-        sf = ttk.Frame(li, style="P.TFrame")
-        sf.grid(row=0, column=0, sticky="ew")
-        sf.columnconfigure(0, weight=1)
-        self.lbl_src = ttk.Label(sf, text="", style="PH.TLabel")
+        # Une seule grille à deux lignes : libellés (ligne 0), puis listes et
+        # boutons (ligne 1). « Détecter » et « Inverser » partagent la ligne
+        # des listes déroulantes et le même style : même hauteur (celle de la
+        # ligne, sticky "ns") et même alignement.
+        # Colonnes : 0 liste source | 1 Détecter | 2 Inverser | 3 liste cible
+        li.columnconfigure(0, weight=1)
+        li.columnconfigure(2, weight=0)
+        li.columnconfigure(3, weight=1)
+
+        self.lbl_src = ttk.Label(li, text="", style="PH.TLabel")
         self.lbl_src.grid(row=0, column=0, sticky="w", pady=(0, 5))
         src_langs = sorted(MAPPING.keys(), key=lambda c: LANG_NAMES.get(c, c))
         self.cb_src = ttk.Combobox(
-            sf, values=[LANG_NAMES.get(c, c) for c in src_langs],
+            li, values=[LANG_NAMES.get(c, c) for c in src_langs],
             state="readonly", width=28, font=F["body"],
         )
         self.cb_src.grid(row=1, column=0, sticky="ew")
         self.cb_src.bind("<<ComboboxSelected>>", self._on_src_change)
         # Détection de la langue source d'après le texte (ui/app.py
         # _detect_source, module detection.py).
-        self.btn_detect = ttk.Button(sf, text="", style="Detect.TButton",
+        self.btn_detect = ttk.Button(li, text="", style="Detect.TButton",
                                      command=self._detect_source)
         self.btn_detect.grid(row=1, column=1, sticky="ns", padx=(8, 0))
 
-        sbf = ttk.Frame(li, style="P.TFrame")
-        sbf.grid(row=0, column=1, padx=14, sticky="s", pady=(0, 2))
-        self.btn_swap = ttk.Button(sbf, text="", style="Swap.TButton",
+        self.btn_swap = ttk.Button(li, text="", style="Detect.TButton",
                                    command=self._swap_langs)
-        self.btn_swap.pack()
+        self.btn_swap.grid(row=1, column=2, sticky="ns", padx=14)
 
-        tf = ttk.Frame(li, style="P.TFrame")
-        tf.grid(row=0, column=2, sticky="ew")
-        tf.columnconfigure(0, weight=1)
-        self.lbl_tgt = ttk.Label(tf, text="", style="PH.TLabel")
-        self.lbl_tgt.grid(row=0, column=0, sticky="w", pady=(0, 5))
-        self.cb_tgt = ttk.Combobox(tf, values=[], state="readonly",
+        self.lbl_tgt = ttk.Label(li, text="", style="PH.TLabel")
+        self.lbl_tgt.grid(row=0, column=3, sticky="w", pady=(0, 5))
+        self.cb_tgt = ttk.Combobox(li, values=[], state="readonly",
                                    width=28, font=F["body"])
-        self.cb_tgt.grid(row=1, column=0, sticky="ew")
+        self.cb_tgt.grid(row=1, column=3, sticky="ew")
 
         ttk.Separator(self).pack(fill="x")
 
