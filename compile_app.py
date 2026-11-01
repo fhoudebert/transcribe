@@ -82,6 +82,8 @@ VENV_ONLY: list[str] = [
     # Traduction (truchement + traduire-srt.py) — le plus gros poste
     "argostranslate", "argostranslatefiles", "ctranslate2", "sentencepiece",
     "sacremoses", "stanza", "minisbd", "mwt",
+    # Détection de langue (truchement, bouton « Détecter »)
+    "py3langid",
     # Calcul scientifique tiré par stanza / spacy / onnxruntime
     "torch", "numpy", "scipy", "onnxruntime", "sympy", "mpmath", "networkx",
     "flatbuffers", "google.protobuf",
