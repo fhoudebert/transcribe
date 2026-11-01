@@ -621,7 +621,8 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
         elif exc.code == "NO_MODULE":
             msg = t.get("detect_no_module",
                         "Language detection unavailable (py3langid missing): "
-                        "run setup_python again.") + f"\n\n{exc.detail}"
+                        "run setup_python again.") + (
+                f"\n\n{exc.detail}\nPython : {bootstrap.VENV_DIR_RELATIVE}")
         else:
             msg = t.get("detect_error", "Detection failed:\n{err}").format(
                 err=exc.detail or exc.code)

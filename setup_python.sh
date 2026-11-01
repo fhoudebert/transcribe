@@ -118,10 +118,19 @@ if ! "$PY" -c "pass" 2>/dev/null; then
     exit 1
 fi
 
+# requirements.txt de la racine (celui du dépôt, à jour) EN PRIORITÉ ; la
+# copie historique build/python/requirements.txt n'est qu'un repli : une
+# ancienne copie oubliée là masquait les paquets ajoutés depuis (py3langid…).
 REQ=""
-for candidate in "$ROOT/build/python/requirements.txt" "$ROOT/requirements.txt"; do
+for candidate in "$ROOT/requirements.txt" "$ROOT/build/python/requirements.txt"; do
     [ -f "$candidate" ] && REQ="$candidate" && break
 done
+OLD_REQ="$ROOT/build/python/requirements.txt"
+if [ "$REQ" = "$ROOT/requirements.txt" ] && [ -f "$OLD_REQ" ] \
+        && ! cmp -s "$REQ" "$OLD_REQ"; then
+    echo "      ℹ️  build/python/requirements.txt (ancienne copie, différente) est ignoré :"
+    echo "         seul requirements.txt à la racine fait foi ; vous pouvez le supprimer."
+fi
 if [ -n "$REQ" ]; then
     echo "[2/4] Installation des paquets ($REQ) — torch est volumineux, patience"
     "$PY" -m pip install --disable-pip-version-check --no-warn-script-location \
@@ -151,7 +160,7 @@ else
 fi
 
 echo "[4/4] Vérification"
-"$PY" -c "import sys, tkinter, argostranslate.translate, ctranslate2, fitz, requests; \
+"$PY" -c "import sys, tkinter, argostranslate.translate, ctranslate2, fitz, requests, py3langid; \
 print('Python', sys.version.split()[0], '- Tk', tkinter.TkVersion, '- ctranslate2', ctranslate2.__version__)"
 
 if [ -d "$ROOT/build/python/venv" ]; then

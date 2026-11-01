@@ -84,10 +84,19 @@ echo [1/4] Python deja present :
 
 :installed
 set "REQ="
-if exist "%ROOT%build\python\requirements.txt" (
-    set "REQ=%ROOT%build\python\requirements.txt"
-) else if exist "%ROOT%requirements.txt" (
+rem requirements.txt de la racine (celui du depot, a jour) EN PRIORITE ; la
+rem copie historique build\python\requirements.txt n'est qu'un repli : une
+rem ancienne copie oubliee la masquait les paquets ajoutes depuis (py3langid).
+if exist "%ROOT%requirements.txt" (
     set "REQ=%ROOT%requirements.txt"
+) else if exist "%ROOT%build\python\requirements.txt" (
+    set "REQ=%ROOT%build\python\requirements.txt"
+)
+if exist "%ROOT%requirements.txt" if exist "%ROOT%build\python\requirements.txt" (
+    fc /b "%ROOT%requirements.txt" "%ROOT%build\python\requirements.txt" >nul 2>nul || (
+        echo        build\python\requirements.txt ^(ancienne copie, differente^) est ignore :
+        echo        seul requirements.txt a la racine fait foi ; vous pouvez le supprimer.
+    )
 )
 if not defined REQ goto no_req
 rem hors bloc ( ) : un chemin contenant une parenthese n'y casse rien
@@ -118,7 +127,7 @@ if errorlevel 1 (
 
 :check
 echo [4/4] Verification
-"%PY%" -c "import sys, tkinter, argostranslate.translate, ctranslate2, fitz, requests; print('Python', sys.version.split()[0], '- Tk', tkinter.TkVersion, '- ctranslate2', ctranslate2.__version__)" || goto fail
+"%PY%" -c "import sys, tkinter, argostranslate.translate, ctranslate2, fitz, requests, py3langid; print('Python', sys.version.split()[0], '- Tk', tkinter.TkVersion, '- ctranslate2', ctranslate2.__version__)" || goto fail
 if exist "%ROOT%build\python\venv-windows" echo L'ancien venv build\python\venv-windows n'est plus utilise : il peut etre supprime.
 echo Python portable pret : build\python\windows
 endlocal
