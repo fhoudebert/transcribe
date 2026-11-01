@@ -28,7 +28,7 @@ _DETECT_RE = re.compile(r"auto-detected language:\s*([a-z]{2,3})")
 from app_styles import (
     BG, BG2, BG3, BG4, ACCENT, GREEN, WARN, DANGER, TEAL,
     FG, FG2, BORDER,
-    FONT_MONO, FONT_UI, FONT_H1, FONT_H2, FONT_SMALL, FONT_INFO,
+    FONT_MONO, FONT_UI, FONT_H1, FONT_H2, FONT_SMALL, FONT_INFO, UI_FONT,
     mkbtn, section, hdivider, checkbox, apply_ttk_style, _adj,
 )
 from recorder_window import RecorderWindow
@@ -419,9 +419,7 @@ class Transcribe(tk.Tk):
             canvas.create_oval(2, 2, icon_size-2, icon_size-2,
                                 fill=ACCENT, outline="")
             canvas.create_text(icon_size//2, icon_size//2, text="T",
-                                font=("Segoe UI" if IS_WINDOWS
-                                      else "Helvetica Neue",
-                                      icon_size // 2, "bold"),
+                                font=(UI_FONT, icon_size // 2, "bold"),
                                 fill=BG2)
 
         # ── Titre + sous-titre ────────────────────────────────
@@ -453,8 +451,7 @@ class Transcribe(tk.Tk):
                 bg=col, fg=fg,
                 activebackground=_adj(ACCENT, 20), activeforeground=FG,
                 relief="flat", bd=0, cursor="hand2",
-                font=("Segoe UI" if IS_WINDOWS else "Helvetica Neue",
-                      9, "bold"),
+                font=(UI_FONT, 9, "bold"),
                 padx=8, pady=4,
                 command=lambda c=code: self._switch_ui_lang(c),
             ).pack(side="left", padx=2)
@@ -466,8 +463,7 @@ class Transcribe(tk.Tk):
             bg=BG2, fg=FG2,
             activebackground=BG3, activeforeground=FG,
             relief="flat", bd=0, cursor="hand2",
-            font=("Segoe UI" if IS_WINDOWS else "Helvetica Neue",
-                  11, "bold"),
+            font=(UI_FONT, 11, "bold"),
             padx=4, pady=2,
             command=lambda: AboutWindow(self),
         ).pack(side="left")

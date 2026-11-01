@@ -22,12 +22,23 @@ FG2    = "#8b949e"
 BORDER = "#30363d"
 
 # ── Polices ───────────────────────────────────────────────────
-FONT_MONO  = ("Consolas", 9)           if IS_WINDOWS else ("Monospace", 9)
-FONT_UI    = ("Segoe UI", 10)          if IS_WINDOWS else ("Helvetica Neue", 10)
-FONT_H1    = ("Segoe UI", 14, "bold")  if IS_WINDOWS else ("Helvetica Neue", 14, "bold")
-FONT_H2    = ("Segoe UI", 10, "bold")  if IS_WINDOWS else ("Helvetica Neue", 10, "bold")
-FONT_SMALL = ("Segoe UI",  8)          if IS_WINDOWS else ("Helvetica Neue",  8)
-FONT_INFO  = ("Consolas",  9)          if IS_WINDOWS else ("Monospace", 9)
+# Polices classiques par système, présentes d'office :
+#   Windows : Segoe UI (interface) et Consolas (chasse fixe) ;
+#   Linux   : DejaVu Sans et DejaVu Sans Mono (installées par défaut sur la
+#             plupart des distributions ; sinon fontconfig choisit la police
+#             sans empattement la plus proche).
+# Elles ne s'affichent correctement sous Linux qu'avec un Tk compilé avec Xft :
+# setup_python.sh en installe un (tools/tk-xft) dans le Python portable — celui
+# de python-build-standalone ne connaît que les polices bitmap X11 (« fixed »).
+UI_FONT   = "Segoe UI" if IS_WINDOWS else "DejaVu Sans"
+MONO_FONT = "Consolas" if IS_WINDOWS else "DejaVu Sans Mono"
+
+FONT_MONO  = (MONO_FONT, 9)
+FONT_UI    = (UI_FONT, 10)
+FONT_H1    = (UI_FONT, 14, "bold")
+FONT_H2    = (UI_FONT, 10, "bold")
+FONT_SMALL = (UI_FONT,  8)
+FONT_INFO  = (MONO_FONT, 9)
 
 
 # ── Helpers couleur ───────────────────────────────────────────

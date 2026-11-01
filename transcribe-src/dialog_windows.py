@@ -23,7 +23,7 @@ from app_config import (
 from i18n import t, get_locale
 from app_styles import (
     BG, BG2, BG3, BG4, ACCENT, GREEN, WARN, DANGER, FG, FG2, BORDER,
-    FONT_MONO, FONT_UI, FONT_H1, FONT_H2, FONT_SMALL,
+    FONT_MONO, FONT_UI, FONT_H1, FONT_H2, FONT_SMALL, UI_FONT,
     mkbtn, _adj,
 )
 import ytdlp_probe as probe
@@ -55,7 +55,7 @@ class ChoiceDialog(tk.Toplevel):
         py = parent.winfo_y() + parent.winfo_height() // 2
         self.geometry(f"{w}x{h}+{px - w//2}+{py - h//2}")
 
-        font_big = ("Segoe UI" if IS_WINDOWS else "Helvetica Neue", 22)
+        font_big = (UI_FONT, 22)
         tk.Label(self, text="✅", font=font_big, bg=BG2).pack(pady=(18, 2))
         tk.Label(self, text=title,   font=FONT_H2, bg=BG2, fg=FG).pack()
         tk.Label(self, text=message, font=FONT_UI,  bg=BG2, fg=FG2,
