@@ -347,6 +347,13 @@ def main(argv: list[str]) -> int:
 
     cmd = [sys.executable, "-m", "PyInstaller",
            "--onefile", "--noconfirm", "--windowed", "--name", name,
+           # --clean : repartir d'un cache vide. Sinon PyInstaller peut
+           # réutiliser des modules compilés lors d'une compilation
+           # précédente (build/), et livrer un exécutable mêlant versions
+           # récentes et périmées des sources — constaté : app.py récent
+           # appelant une méthode absente d'un book_tab.py périmé, d'où un
+           # ✕ de fenêtre inopérant.
+           "--clean",
            # -OO sur les seuls modules embarqués : supprime docstrings et
            # assertions (sans effet sur le code chargé du Python portable à l'exécution).
            "--optimize", "2"]

@@ -25,6 +25,7 @@ import os
 import re
 import threading
 import time
+import traceback
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -169,12 +170,27 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
     # ── Fermeture ─────────────────────────────────────────────────────────────
 
     def _on_close(self) -> None:
-        # Traduction de livre en cours : proposer une pause propre d'abord.
-        if not self._book_confirm_close():
-            return
+        """
+        Fermeture par ✕. Elle ne doit JAMAIS être bloquée par une erreur :
+        une exception levée ici annule silencieusement la fermeture (la
+        fenêtre reste ouverte, le ✕ semble inactif). Seul un refus explicite
+        de l'utilisateur (traduction de livre en cours) l'empêche.
+        """
+        try:
+            # Traduction de livre en cours : proposer une pause propre d'abord.
+            if not self._book_confirm_close():
+                return
+        except Exception:
+            traceback.print_exc()
         for key in list(self._progress_timers):
-            self._stop_progress_timer(key)
-        close_all_conns()
+            try:
+                self._stop_progress_timer(key)
+            except Exception:
+                traceback.print_exc()
+        try:
+            close_all_conns()
+        except Exception:
+            traceback.print_exc()
         self.destroy()
 
     # ── Chronomètre de progression (texte ET fichier) ─────────────────────────

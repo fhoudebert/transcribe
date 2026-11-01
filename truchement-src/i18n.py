@@ -21,7 +21,7 @@ I18N: dict[str, dict[str, str]] = {
     "en": {
         "via_pivot": "· via English",
         "engine_ready": "Translation engine ready.",
-        "title": "Dictionary",
+        "title": "Truchement",
         "subtitle": "Translate texts and define words",
         "source_lang": "Source Language",
         "target_lang": "Target Language",
@@ -312,7 +312,7 @@ I18N: dict[str, dict[str, str]] = {
     "de": {
         "via_pivot": "· über Englisch",
         "engine_ready": "Übersetzungs-Engine bereit.",
-        "title": "Wörterbuch",
+        "title": "Truchement",
         "subtitle": "Texte übersetzen und Wörter definieren",
         "source_lang": "Quellsprache",
         "target_lang": "Zielsprache",
@@ -452,7 +452,7 @@ I18N: dict[str, dict[str, str]] = {
     "es": {
         "via_pivot": "· vía inglés",
         "engine_ready": "Motor de traducción listo.",
-        "title": "Diccionario",
+        "title": "Truchement",
         "subtitle": "Traducir textos y definir palabras",
         "source_lang": "Idioma origen",
         "target_lang": "Idioma destino",
