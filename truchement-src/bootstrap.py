@@ -10,8 +10,8 @@ Résout deux problèmes liés à PyInstaller --onefile :
      sys.executable pointe vers le binaire final déployé → source stable.
 
   2. argostranslate / argostranslatefiles, installés dans le Python
-     portable livré sur la clé (build/python/linux ou build/python/windows,
-     anciennement le venv build/python/venv), doivent être rendus visibles
+     portable livré sur la clé (build/python/venv sous Linux,
+     build/python/venv-windows sous Windows), doivent être rendus visibles
      à l'interpréteur qui exécute cette application (ce Python lui-même en
      usage normal, ou l'exe PyInstaller figé en version compilée).
 
@@ -64,13 +64,13 @@ else:
 
 # ─── Localisation de l'interpréteur Python portable ────────────────────────────
 #
-# Depuis setup_python.sh / .bat, la clé porte un CPython COMPLET et déplaçable
-# (python-build-standalone) par système : build/python/linux et
-# build/python/windows, paquets installés directement dedans (pas de venv).
-# L'ancien venv (build/python/venv, build/python/venv-windows) reste reconnu
-# EN REPLI, pour qu'une clé préparée avant ce changement continue de marcher
-# tant que setup_python n'a pas été relancé. Les noms historiques VENV_*
-# sont conservés pour ne pas toucher aux modules qui les importent.
+# setup_python.sh / .bat installent un CPython COMPLET et déplaçable
+# (python-build-standalone) par système, aux emplacements historiques de
+# l'environnement Python de la clé : build/python/venv (Linux) et
+# build/python/venv-windows (Windows), paquets installés directement dedans.
+# Malgré leur nom, ce ne sont plus des venv : aucun lien vers le Python du
+# système. build/python/linux et build/python/windows (version précédente de
+# setup_python) restent reconnus en repli.
 
 def _python_dirnames(platform_os: str = os.name) -> list[str]:
     """
@@ -81,8 +81,8 @@ def _python_dirnames(platform_os: str = os.name) -> list[str]:
     revanche partagées entre les deux systèmes.
     """
     if platform_os == "nt":
-        return ["windows", "venv-windows"]
-    return ["linux", "venv"]
+        return ["venv-windows", "windows"]
+    return ["venv", "linux"]
 
 
 def _pick_python_dirname() -> str:

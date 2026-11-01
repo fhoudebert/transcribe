@@ -3,7 +3,7 @@ rem ============================================================================
 rem  setupPython_and_download.bat - Installation complete Windows (cle neuve)
 rem  Pendant Windows de setupPython_and_download.sh :
 rem    1. Python portable (python-build-standalone 3.12.15, dans
-rem       build\python\windows, aucun Python installe requis) + langues Argos ;
+rem       build\python\venv-windows, aucun Python installe requis) + langues Argos ;
 rem    2. composants de downloads.csv (modeles Whisper, dictionnaires) via
 rem       download-assistant.exe s'il est present, sinon le telechargeur
 rem       Python multiplateforme download_from_csv.py.
@@ -20,7 +20,7 @@ echo === Etape 2 : telechargement des composants (downloads.csv) ===
 if exist "%SCRIPT_DIR%download-assistant.exe" (
     "%SCRIPT_DIR%download-assistant.exe" || exit /b 1
 ) else (
-    "%SCRIPT_DIR%build\python\windows\python.exe" ^
+    "%SCRIPT_DIR%build\python\venv-windows\python.exe" ^
         "%SCRIPT_DIR%download_from_csv.py" "%SCRIPT_DIR%downloads.csv" || exit /b 1
 )
 

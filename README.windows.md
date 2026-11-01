@@ -4,13 +4,13 @@ La clé (exFAT recommandé) est **bi-OS** : les deux systèmes cohabitent.
 
 | Partagé entre Linux et Windows | Propre à chaque OS |
 |---|---|
-| paquets Argos (`build/argos-data/`), modèles Whisper, dictionnaires (`build/dic/`), `assets/`, `i18n/` | Python portable : `build/python/linux` / `build\python\windows` ; binaires : `truchement` / `truchement.exe` |
+| paquets Argos (`build/argos-data/`), modèles Whisper, dictionnaires (`build/dic/`), `assets/`, `i18n/` | Python portable : `build/python/venv` / `build\python\venv-windows` ; binaires : `truchement` / `truchement.exe` |
 
 ## Prérequis
 
 **Aucun Python à installer** : `setup_python.bat` télécharge un CPython
 3.12.15 complet et déplaçable (python-build-standalone, build « stripped »,
-tkinter compris) dans `build\python\windows`. Windows 10 1803 ou plus
+tkinter compris) dans `build\python\venv-windows` (emplacement habituel, mais ce n'est plus un venv lié au Python du système). Windows 10 1803 ou plus
 récent suffit (`curl.exe` et `tar.exe` intégrés). Un Python déjà installé
 sur la machine n'est ni utilisé ni modifié.
 
@@ -26,7 +26,7 @@ présent, apporté par d'autres logiciels).
 
 Double-clic (ou depuis un terminal) à la racine de la clé :
 lance `setup_python.bat`, qui installe le Python portable dans
-`build\python\windows` (somme SHA-256 vérifiée), y installe les dépendances
+`build\python\venv-windows` (somme SHA-256 vérifiée), y installe les dépendances
 de `requirements.txt`, installe les paquets de
 langues Argos **directement sur la clé** (partagés avec Linux : si le setup
 Linux les a déjà téléchargés, cette étape ne refait rien), puis télécharge
@@ -55,6 +55,6 @@ préchauffage tourne en arrière-plan, la barre d'état affiche « Moteur de
 traduction prêt ». L'onglet Définition doit lister les dictionnaires de
 `build\dic\`. En cas de souci, le bouton *Diagnostic* de l'application
 indique précisément le Python et les chemins inspectés (il vise
-`build\python\windows` sous Windows ; une clé préparée avec une version
-antérieure retombe sur l'ancien `venv-windows`, à supprimer une fois
-`setup_python.bat` relancé).
+`build\python\venv-windows` sous Windows ; sur une clé préparée avec une
+version antérieure, `setup_python.bat` remplace l'ancien venv lié au Python
+du système, ou déplace `build\python\windows` à sa place).

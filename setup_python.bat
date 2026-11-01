@@ -4,11 +4,15 @@ rem  setup_python.bat - Python portable de transcribe / truchement (Windows)
 rem
 rem  Pendant Windows de setup_python.sh : installe un CPython COMPLET et
 rem  DEPLACABLE (python-build-standalone, build "stripped", Python 3.12.15)
-rem  dans build\python\windows, puis les paquets de requirements.txt
-rem  DIRECTEMENT dedans (pas de venv) et les paquets de langues Argos dans
+rem  dans build\python\venv-windows - l'emplacement historique de
+rem  l'environnement Python Windows de la cle -, puis les paquets de
+rem  requirements.txt DIRECTEMENT dedans et les paquets de langues Argos dans
 rem  build\argos-data\packages (partages avec Linux).
-rem  Aucun Python installe sur l'ordinateur n'est necessaire ni utilise.
-rem  Le Python Linux (build/python/linux) cohabite sur la meme cle.
+rem  Malgre son nom, venv-windows n'est plus un venv : c'est un Python complet.
+rem  Aucun Python installe sur l'ordinateur n'est necessaire ni utilise ; un
+rem  ancien venv cree avec le Python du systeme est remplace, une installation
+rem  dans build\python\windows (version precedente) est deplacee ici.
+rem  Le Python Linux (build/python/venv) cohabite sur la meme cle.
 rem  Necessite Windows 10 1803 ou plus recent (curl.exe et tar.exe integres).
 rem
 rem  Les lanceurs que pip pose dans Scripts\ (argospm.exe, pyinstaller.exe...)
@@ -26,7 +30,8 @@ set "SHA256=7a2aef48e5ee569e310b29b32681debbc5d888e92790d85331a47736c6b06aad"
 set "URL=https://github.com/astral-sh/python-build-standalone/releases/download/%PBS_TAG%/%ASSET%"
 
 set "ROOT=%~dp0"
-set "DEST=%ROOT%build\python\windows"
+set "DEST=%ROOT%build\python\venv-windows"
+set "OLD_WIN=%ROOT%build\python\windows"
 set "PY=%DEST%\python.exe"
 set "ARGOS_DATA_DIR=%ROOT%build\argos-data\packages"
 
@@ -49,6 +54,17 @@ set "PIP_USER=0"
 rem Un Python n'est conserve qu'avec le marqueur ".complete" d'une
 rem installation terminee : une installation interrompue est refaite.
 if defined FORCE if exist "%DEST%" rmdir /s /q "%DEST%"
+if defined FORCE if exist "%OLD_WIN%" rmdir /s /q "%OLD_WIN%"
+rem Ancien venv cree avec le Python du systeme (pyvenv.cfg) : remplace.
+if exist "%DEST%\pyvenv.cfg" (
+    echo [1/4] Ancien venv ^(Python du systeme^) trouve dans build\python\venv-windows : remplace
+    rmdir /s /q "%DEST%"
+)
+rem Python portable de la version precedente (build\python\windows) : deplace.
+if not exist "%DEST%" if exist "%OLD_WIN%\.complete" (
+    echo [1/4] Python portable deplace de build\python\windows vers build\python\venv-windows
+    move "%OLD_WIN%" "%DEST%" >nul
+)
 if exist "%DEST%\.complete" goto have_python
 if exist "%DEST%" (
     echo [1/4] Python incomplet trouve, reinstallation
@@ -128,8 +144,8 @@ if errorlevel 1 (
 :check
 echo [4/4] Verification
 "%PY%" -c "import sys, tkinter, argostranslate.translate, ctranslate2, fitz, requests, py3langid; print('Python', sys.version.split()[0], '- Tk', tkinter.TkVersion, '- ctranslate2', ctranslate2.__version__)" || goto fail
-if exist "%ROOT%build\python\venv-windows" echo L'ancien venv build\python\venv-windows n'est plus utilise : il peut etre supprime.
-echo Python portable pret : build\python\windows
+if exist "%OLD_WIN%\.complete" echo build\python\windows ^(installation precedente^) n'est plus utilise : il peut etre supprime.
+echo Python portable pret : build\python\venv-windows
 endlocal
 exit /b 0
 

@@ -8,8 +8,9 @@ lanceurs. Une seule recette de compilation → aucune dérive entre OS.
 
 PRINCIPE DIRECTEUR — TAILLE MINIMALE
 ------------------------------------
-Le binaire est posé À CÔTÉ du Python portable de la clé (build/python/linux
-ou build/python/windows, python-build-standalone installé par setup_python) :
+Le binaire est posé À CÔTÉ du Python portable de la clé (build/python/venv
+ou build/python/venv-windows, python-build-standalone installé par
+setup_python) :
 tout paquet tiers présent dans ce Python n'a AUCUNE raison d'être copié une
 seconde fois dans l'exécutable. Trois règles en découlent :
 
@@ -215,13 +216,12 @@ import sys
 _base = os.path.dirname(os.path.abspath(sys.executable))
 _py = os.path.join(_base, "build", "python")
 if os.name == "nt":
-    _cands = [os.path.join(_py, "windows", "Lib", "site-packages"),
-              os.path.join(_py, "venv-windows", "Lib", "site-packages")]
+    _cands = [os.path.join(_py, "venv-windows", "Lib", "site-packages"),
+              os.path.join(_py, "windows", "Lib", "site-packages")]
 else:
     _cands = (
-        glob.glob(os.path.join(_py, "linux", "lib", "python3.*", "site-packages"))
-        + glob.glob(os.path.join(_py, "venv", "lib", "python3.*", "site-packages"))
-        + glob.glob(os.path.join(_py, "venv", "lib64", "python3.*", "site-packages"))
+        glob.glob(os.path.join(_py, "venv", "lib", "python3.*", "site-packages"))
+        + glob.glob(os.path.join(_py, "linux", "lib", "python3.*", "site-packages"))
     )
 for _cand in _cands:
     if os.path.isdir(_cand) and _cand not in sys.path:
@@ -238,16 +238,22 @@ def venv_runtime_hook(tmpdir: str) -> str:
 
 
 def running_key_python() -> bool:
-    """Vrai si l'interpréteur courant est celui de la clé : Python portable
-    (build/python/linux | windows) ou ancien venv (sys.prefix != base_prefix)."""
+    """Vrai si l'interpréteur courant est le Python portable de la clé
+    (build/python/venv | venv-windows, ou linux | windows de la version
+    précédente). Un vrai venv (sys.prefix != base_prefix) est REFUSÉ : il
+    repose sur le Python du système, que la clé ne doit pas utiliser."""
     if sys.prefix != sys.base_prefix:
-        return True
-    portable = os.path.join(APP_ROOT, "build", "python",
-                            "windows" if IS_WINDOWS else "linux")
-    try:
-        return os.path.samefile(sys.prefix, portable)
-    except OSError:
         return False
+    names = (("venv-windows", "windows") if IS_WINDOWS
+             else ("venv", "linux"))
+    for name in names:
+        try:
+            if os.path.samefile(sys.prefix,
+                                os.path.join(APP_ROOT, "build", "python", name)):
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def ensure_pyinstaller() -> None:
@@ -322,12 +328,14 @@ def main(argv: list[str]) -> int:
 
     # Le script doit tourner avec le Python portable de la clé (c'est lui qui
     # porte PyInstaller et dont la version doit correspondre aux extensions
-    # compilées qu'il héberge) — ou, en repli, avec l'ancien venv.
+    # compilées qu'il héberge). Jamais un venv du Python système.
     if not running_key_python():
         py_rel = os.path.join("build", "python",
-                              "windows" if IS_WINDOWS else "linux")
-        print(f"[ERREUR] À lancer avec le Python portable de la clé "
-              f"({py_rel}, installé par setup_python) — utilisez "
+                              "venv-windows" if IS_WINDOWS else "venv")
+        hint = ("ancien venv créé avec le Python du système : "
+                if sys.prefix != sys.base_prefix else "")
+        print(f"[ERREUR] {hint}à lancer avec le Python portable de la clé "
+              f"({py_rel}) — relancez setup_python puis "
               f"compiler_{name}.bat / .sh")
         return 1
 

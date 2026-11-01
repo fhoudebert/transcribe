@@ -82,7 +82,7 @@ Typical pipeline:
 
 1. **Unzip a release** (or clone this repository) into its final location.
 
-2. **Install the portable Python** (a complete, relocatable CPython 3.12.15 from [python-build-standalone](https://github.com/astral-sh/python-build-standalone), stripped build, placed in `build/python/linux` or `build\python\windows`; then Argos Translate and the language packages, all inside the app folder — no system Python needed, none touched):
+2. **Install the portable Python** (a complete, relocatable CPython 3.12.15 from [python-build-standalone](https://github.com/astral-sh/python-build-standalone), stripped build, placed in `build/python/venv` or `build\python\venv-windows` — the usual places, but no longer a venv tied to the system Python; then Argos Translate and the language packages, all inside the app folder — no system Python needed, none touched):
 
    ```bash
    ./setup_python.sh          # Linux   (--no-lang: skip the language packages, --force: reinstall Python)
@@ -136,8 +136,8 @@ This is a first-class use case, not an afterthought:
 transcribe/                    ← the whole app: copy this folder, and it works
 ├── transcribe, truchement     ← the executables
 ├── build/
-│   ├── python/linux/          ← portable Python for Linux (never touches system Python)
-│   ├── python/windows/        ← portable Python for Windows
+│   ├── python/venv/           ← portable Python for Linux (never touches system Python)
+│   ├── python/venv-windows/   ← portable Python for Windows
 │   ├── whisper/models/        ← speech-to-text models (*.bin)
 │   ├── argos-data/packages/   ← installed translation packages
 │   ├── dic/                   ← offline dictionaries (*.db)
@@ -158,7 +158,7 @@ Everything the GUIs do is also scriptable. A few examples:
 | `audio2srt.sh` | audio/video → subtitle file |
 | `audio2en.sh` | audio in any language → English text |
 | `traduire-srt.sh` | translate an existing `.srt` |
-| `traduire-livre.py` | translate a book through a local llama.cpp server (run it with `build/python/linux/bin/python3.12`; `--help` for options) |
+| `traduire-livre.py` | translate a book through a local llama.cpp server (run it with `build/python/venv/bin/python3.12`; `--help` for options) |
 | `soustitre.sh` | full video → subtitled video pipeline |
 | `creerMKV.sh` / `inclure-srt.sh` | embed subtitle tracks into an `.mkv` |
 | `enregistrer.sh` | record from the microphone |
@@ -168,7 +168,7 @@ Everything the GUIs do is also scriptable. A few examples:
 
 - **"No languages installed" in Truchement** — the translation packages are missing from `build/argos-data/packages/`. Re-run `setup_python.sh` / `setup_python.bat` (or Baluchon), or use the in-app *Diagnose* button to see where the app is looking.
 - **First translation is slow** — the first use of a language pair loads its model into memory (a few seconds). Subsequent translations are near-instant.
-- **App works on one machine but not after copying to a stick** — the portable Python holds no symbolic links, so a plain copy is fine; if `build/python/linux/bin/python3.12` refuses to start on Linux, the stick is probably mounted `noexec` (remount it with `exec`). A key prepared with an older version still uses `build/python/venv`: run `setup_python.sh` once, then the old `venv` folder can be deleted.
+- **App works on one machine but not after copying to a stick** — the portable Python holds no symbolic links, so a plain copy is fine; if `build/python/venv/bin/python3.12` refuses to start on Linux, the stick is probably mounted `noexec` (remount it with `exec`). On a key prepared with an older version, `setup_python.sh` / `.bat` replaces the old venv built on the system Python, and moves an install from `build/python/linux` / `windows` into place.
 
 ## Roadmap
 

@@ -5,8 +5,8 @@ set -Eeuo pipefail
 # portable de la clé (le script bin/argos-translate qu'installe pip porte un
 # shebang absolu, non déplaçable : on ne l'utilise pas).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PY="$SCRIPT_DIR/build/python/linux/bin/python3.12"
-[ -x "$PY" ] || PY="$SCRIPT_DIR/build/python/venv/bin/python"
+PY="$SCRIPT_DIR/build/python/venv/bin/python3.12"
+[ -x "$PY" ] || PY="$SCRIPT_DIR/build/python/linux/bin/python3.12"
 argos_translate() {
     if [ -n "${ARGOS_BIN:-}" ]; then
         "$ARGOS_BIN" "$@"
