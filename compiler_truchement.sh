@@ -32,4 +32,9 @@ if [ ! -x "$VPY" ]; then
     exit 1
 fi
 
+# Tk avec Xft (polices du système) installé si besoin dans le Python portable,
+# avant que PyInstaller ne l'embarque dans l'exécutable.
+VDIR="$(cd "$(dirname "$VPY")/.." && pwd)"
+bash "$SCRIPT_DIR/tools/tk-xft/install_tk_xft.sh" "$VDIR" || true
+
 exec "$VPY" "$SCRIPT_DIR/compile_app.py" truchement

@@ -256,6 +256,25 @@ def running_key_python() -> bool:
     return False
 
 
+def warn_tk_without_xft() -> None:
+    """Linux : prévient si le Tk qui sera embarqué n'est pas celui avec Xft
+    (tools/tk-xft) — l'interface n'aurait alors que les polices bitmap X11."""
+    if not IS_LINUX:
+        return
+    ref = os.path.join(APP_ROOT, "tools", "tk-xft", "libtcl9tk9.0.so")
+    lib = os.path.join(sys.prefix, "lib", "libtcl9tk9.0.so")
+    try:
+        with open(ref, "rb") as a, open(lib, "rb") as b:
+            if a.read() == b.read():
+                return
+    except OSError:
+        return
+    print("[ATTENTION] Le Python portable n'a pas le Tk avec Xft : l'interface "
+          "n'aura que les polices bitmap X11.\n            Lancez "
+          "tools/tk-xft/install_tk_xft.sh build/python/venv (ou "
+          "compiler_*.sh / setup_python.sh) et lisez son message.")
+
+
 def ensure_pyinstaller() -> None:
     try:
         import PyInstaller  # noqa: F401
@@ -340,6 +359,7 @@ def main(argv: list[str]) -> int:
         return 1
 
     ensure_pyinstaller()
+    warn_tk_without_xft()
 
     # Dossier de travail éphémère : ne sert qu'à porter le runtime hook
     # généré, qui n'a pas à salir l'arborescence des sources.

@@ -22,16 +22,16 @@ FG2    = "#8b949e"
 BORDER = "#30363d"
 
 # ── Polices ───────────────────────────────────────────────────
-# Polices classiques par système, présentes d'office :
+# Polices par système :
 #   Windows : Segoe UI (interface) et Consolas (chasse fixe) ;
-#   Linux   : DejaVu Sans et DejaVu Sans Mono (installées par défaut sur la
-#             plupart des distributions ; sinon fontconfig choisit la police
-#             sans empattement la plus proche).
+#   Linux   : « sans-serif » et « monospace », les polices par défaut du
+#             bureau choisies par fontconfig (Ubuntu, Noto Sans, DejaVu…) —
+#             l'aspect qu'avait l'application avec le Tk du système.
 # Elles ne s'affichent correctement sous Linux qu'avec un Tk compilé avec Xft :
-# setup_python.sh en installe un (tools/tk-xft) dans le Python portable — celui
+# setup_python.sh et compiler_*.sh en installent un (tools/tk-xft) — celui
 # de python-build-standalone ne connaît que les polices bitmap X11 (« fixed »).
-UI_FONT   = "Segoe UI" if IS_WINDOWS else "DejaVu Sans"
-MONO_FONT = "Consolas" if IS_WINDOWS else "DejaVu Sans Mono"
+UI_FONT   = "Segoe UI" if IS_WINDOWS else "sans-serif"
+MONO_FONT = "Consolas" if IS_WINDOWS else "monospace"
 
 FONT_MONO  = (MONO_FONT, 9)
 FONT_UI    = (UI_FONT, 10)

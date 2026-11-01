@@ -151,42 +151,12 @@ if ! "$PY" -c "pass" 2>/dev/null; then
     exit 1
 fi
 
+# Tk avec Xft (polices du système) : voir tools/tk-xft/install_tk_xft.sh
+bash "$ROOT/tools/tk-xft/install_tk_xft.sh" "$DEST" | sed 's/^/[1\/4] /' || true
+
 # requirements.txt de la racine (celui du dépôt, à jour) EN PRIORITÉ ; la
 # copie historique build/python/requirements.txt n'est qu'un repli : une
 # ancienne copie oubliée là masquait les paquets ajoutés depuis (py3langid…).
-# ── Tk avec Xft : polices du système ─────────────────────────────────────────
-# Le Tk de python-build-standalone est compilé sans Xft : il ne voit que les
-# polices bitmap X11 (« fixed »). tools/tk-xft/libtcl9tk9.0.so est le MÊME Tk
-# (9.0.4) compilé avec Xft (recette : tools/tk-xft/build_tk_xft.sh) ; il le
-# remplace, l'original étant gardé dans lib/tk-x11/. Installé seulement si la
-# version correspond, la somme est bonne et la bibliothèque se charge ici.
-TK_XFT="$ROOT/tools/tk-xft/libtcl9tk9.0.so"
-TK_XFT_SHA256="9b91fb6fbff4de3d0eea9ca97297ab50097916c69a524f3da8df0d081cceb536"
-TK_LIB="$DEST/lib/libtcl9tk9.0.so"
-TK_ORIG="$DEST/lib/tk-x11/libtcl9tk9.0.so"
-if [ -f "$TK_XFT" ] && ! cmp -s "$TK_XFT" "$TK_LIB"; then
-    tclver="$("$PY" -c 'import tkinter; print(tkinter.Tcl().eval("info patchlevel"))' 2>/dev/null || true)"
-    if [ "$tclver" != "9.0.4" ]; then
-        echo "[1/4] ℹ️  Tcl/Tk $tclver : tools/tk-xft (9.0.4) ne correspond pas, polices X11 conservées"
-    elif ! echo "$TK_XFT_SHA256  $TK_XFT" | sha256sum -c --quiet - 2>/dev/null; then
-        echo "[1/4] ⚠️  tools/tk-xft/libtcl9tk9.0.so : somme de contrôle incorrecte, ignoré"
-    elif ldd "$TK_XFT" 2>/dev/null | grep -q "not found"; then
-        echo "[1/4] ⚠️  Tk avec Xft non installé, bibliothèques absentes de ce système :"
-        ldd "$TK_XFT" | grep "not found" | sed 's/^/        /'
-        echo "      (paquet libxft2 / libXft) — polices bitmap X11 conservées"
-    else
-        mkdir -p "$(dirname "$TK_ORIG")"
-        [ -f "$TK_ORIG" ] || cp "$TK_LIB" "$TK_ORIG"
-        cp "$TK_XFT" "$TK_LIB"
-        if "$PY" -c "import _tkinter" 2>/dev/null; then
-            echo "[1/4] Tk avec Xft installé : l'interface utilise les polices du système"
-        else
-            cp "$TK_ORIG" "$TK_LIB"
-            echo "[1/4] ⚠️  Tk avec Xft ne se charge pas ici : Tk d'origine restauré"
-        fi
-    fi
-fi
-
 REQ=""
 for candidate in "$ROOT/requirements.txt" "$ROOT/build/python/requirements.txt"; do
     [ -f "$candidate" ] && REQ="$candidate" && break
