@@ -275,6 +275,50 @@ def warn_tk_without_xft() -> None:
           "compiler_*.sh / setup_python.sh) et lisez son message.")
 
 
+def pin_tcl_tk_dirs() -> None:
+    """
+    Désigne à PyInstaller les dossiers de scripts Tcl et Tk du Python
+    portable, en ignorant d'éventuelles variables TCL_LIBRARY / TK_LIBRARY
+    héritées de la session.
+
+    PyInstaller prend TK_LIBRARY telle quelle si elle est définie ; si elle
+    vise un dossier absent (ou les scripts d'une autre version de Tk, celle
+    du système par exemple), l'exécutable est produit SANS scripts Tk et
+    échoue au lancement : « Tk data directory "…/_tk_data" not found ».
+    Les variables sont retirées AVANT d'interroger Tcl (TCL_LIBRARY
+    influence `info library`), puis fixées sur les vrais dossiers.
+    """
+    for var in ("TCL_LIBRARY", "TK_LIBRARY"):
+        if var in os.environ:
+            print(f"[note] {var}={os.environ[var]} ignorée pour la compilation")
+            del os.environ[var]
+    try:
+        import tkinter
+        import _tkinter
+        tcl_dir = tkinter.Tcl().eval("info library")
+    except Exception as exc:              # tkinter absent ou cassé
+        print(f"[ATTENTION] Tcl/Tk introuvable dans ce Python : {exc}")
+        return
+    tk_dir = os.path.join(os.path.dirname(tcl_dir), f"tk{_tkinter.TK_VERSION}")
+    if os.path.isfile(os.path.join(tcl_dir, "init.tcl")) \
+            and os.path.isfile(os.path.join(tk_dir, "tk.tcl")):
+        os.environ["TCL_LIBRARY"] = tcl_dir
+        os.environ["TK_LIBRARY"] = tk_dir
+
+
+def missing_tcl_tk_data(exe: str) -> list[str]:
+    """Dossiers de scripts Tcl/Tk absents de l'exécutable PyInstaller *exe*
+    ([] si tout y est, ou si l'archive ne peut pas être lue)."""
+    try:
+        from PyInstaller.archive.readers import CArchiveReader
+        names = list(CArchiveReader(exe).toc)
+    except Exception:
+        return []
+    want = {"_tcl_data": "_tcl_data/init.tcl", "_tk_data": "_tk_data/tk.tcl"}
+    return [d for d, f in want.items()
+            if not any(n.replace("\\", "/") == f for n in names)]
+
+
 def ensure_pyinstaller() -> None:
     try:
         import PyInstaller  # noqa: F401
@@ -360,6 +404,7 @@ def main(argv: list[str]) -> int:
 
     ensure_pyinstaller()
     warn_tk_without_xft()
+    pin_tcl_tk_dirs()
 
     # Dossier de travail éphémère : ne sert qu'à porter le runtime hook
     # généré, qui n'a pas à salir l'arborescence des sources.
@@ -404,6 +449,17 @@ def main(argv: list[str]) -> int:
         subprocess.run(cmd, cwd=srcdir, check=True)
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+    # Un exécutable sans scripts Tcl/Tk ne démarre pas (« Tk data directory
+    # … _tk_data not found ») : on ne le déploie pas.
+    built_exe = os.path.join(srcdir, "dist", name + (".exe" if IS_WINDOWS else ""))
+    missing = missing_tcl_tk_data(built_exe)
+    if missing:
+        print(f"[ERREUR] {os.path.basename(built_exe)} ne contient pas "
+              f"{' ni '.join(missing)} : il ne démarrerait pas.\n"
+              f"         Vérifiez les avertissements « TclTkInfo » ci-dessus ; "
+              f"exécutable NON déployé.")
+        return 1
 
     # ── Déploiement à la racine ──────────────────────────────────────────────
     exe = name + (".exe" if IS_WINDOWS else "")

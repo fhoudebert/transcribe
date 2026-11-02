@@ -200,5 +200,10 @@
     "url_log_streams": "Fichier final : {audio} piste(s) audio, {subs} piste(s) de sous-titres incorporée(s)",
     "yes": "oui",
     "no": "non",
-    "url_log_mode_none_ticked": "Analyse faite mais aucune case cochée (ou moins de 2 pistes audio) : pistes et sous-titres par défaut"
+    "url_log_mode_none_ticked": "Analyse faite mais aucune case cochée (ou moins de 2 pistes audio) : pistes et sous-titres par défaut",
+    "url_sel_summary": "Seront téléchargés : sous-titres {subs} · audio {audio}",
+    "url_sel_audio_default": "piste par défaut",
+    "url_sel_none": "Seront téléchargés : piste audio et sous-titres par défaut (aucune option cochée)",
+    "url_sel_subs_empty": "⚠  Sous-titres cochés mais aucune langue sélectionnée — un clic sélectionne ou désélectionne une langue",
+    "url_confirm_no_subs": "« Télécharger les sous-titres » est cochée mais aucune langue n'est sélectionnée.\n\nTélécharger quand même, sans sous-titres ?"
 }

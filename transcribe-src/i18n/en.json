@@ -200,5 +200,10 @@
     "url_log_streams": "Final file: {audio} audio track(s), {subs} embedded subtitle track(s)",
     "yes": "yes",
     "no": "no",
-    "url_log_mode_none_ticked": "URL analysed but no box ticked (or fewer than 2 audio tracks): default tracks and subtitles"
+    "url_log_mode_none_ticked": "URL analysed but no box ticked (or fewer than 2 audio tracks): default tracks and subtitles",
+    "url_sel_summary": "Will be downloaded: subtitles {subs} · audio {audio}",
+    "url_sel_audio_default": "default track",
+    "url_sel_none": "Will be downloaded: default audio track and subtitles (no option ticked)",
+    "url_sel_subs_empty": "⚠  Subtitles ticked but no language selected — a click selects or deselects a language",
+    "url_confirm_no_subs": "“Download subtitles” is ticked but no language is selected.\n\nDownload anyway, without subtitles?"
 }
