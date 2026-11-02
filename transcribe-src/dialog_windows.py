@@ -289,6 +289,18 @@ class DownloadWindow(tk.Toplevel):
         # La piste par défaut (index 0) ne peut pas être décochée : on
         # AJOUTE des pistes à celle que yt-dlp retiendrait de toute façon.
         self._lb_audio.bind("<<ListboxSelect>>", self._keep_default_audio)
+        # Chaque clic met à jour le résumé « Seront téléchargés : … » : les
+        # listes basculent (un clic sur une langue déjà sélectionnée la
+        # DÉsélectionne), le résumé montre ce qui partira réellement.
+        for lb in (self._lb_subs, self._lb_auto):
+            lb.bind("<<ListboxSelect>>", self._update_summary, add="+")
+        self._lb_audio.bind("<<ListboxSelect>>", self._update_summary, add="+")
+
+        # — Résumé de la sélection (rangée 4)
+        self._sel_lbl = tk.Label(self._opt, text="", bg=BG2, fg=ACCENT,
+                                 font=FONT_SMALL, anchor="w", justify="left",
+                                 wraplength=530)
+        self._sel_lbl.grid(row=4, column=0, sticky="ew", pady=(2, 0))
 
         self._reset_opts()
 
@@ -301,6 +313,31 @@ class DownloadWindow(tk.Toplevel):
     def _keep_default_audio(self, _e=None):
         if self._audio_codes:
             self._lb_audio.selection_set(0)
+
+    def _sel_summary(self) -> tuple[str, bool]:
+        """(texte, alerte) : ce que « Télécharger » transmettra à yt-dlp."""
+        if not self._probe_res:
+            return "", False
+        subs, audio = [], []
+        if self._subs_on.get():
+            manual = self._selected(self._lb_subs, self._sub_codes)
+            auto = self._selected(self._lb_auto, self._auto_codes)
+            subs = manual + [c for c in auto if c not in manual]
+            if not subs:
+                return t("url_sel_subs_empty"), True
+        if self._audio_on.get() and len(self._audio_codes) >= 2:
+            audio = self._selected(self._lb_audio, self._audio_codes)
+            if len(audio) < 2:
+                audio = []
+        if not (subs or audio):
+            return t("url_sel_none"), False
+        return t("url_sel_summary",
+                 subs=", ".join(subs) or "—",
+                 audio=", ".join(audio) or t("url_sel_audio_default")), False
+
+    def _update_summary(self, _e=None):
+        txt, alert = self._sel_summary()
+        self._sel_lbl.config(text=txt, fg=WARN if alert else ACCENT)
 
     def _toggle_auto(self):
         self._auto_open = not self._auto_open
@@ -337,6 +374,7 @@ class DownloadWindow(tk.Toplevel):
             self._audio_box.grid(row=3, column=0, sticky="ew", pady=(2, 4))
         else:
             self._audio_box.grid_remove()
+        self._update_summary()
         self._fit_height()
 
     def _reset_opts(self):
@@ -422,6 +460,11 @@ class DownloadWindow(tk.Toplevel):
             self._lb_subs.insert("end", self._lang_name(code, name))
         for code, name in res.auto:
             self._lb_auto.insert("end", self._lang_name(code, name))
+        # Listes assez hautes pour voir la sélection sans faire défiler
+        # (jusqu'à 8 lignes ; au-delà, ascenseur).
+        self._lb_subs.config(height=max(3, min(8, len(self._sub_codes))))
+        self._lb_auto.config(height=max(3, min(6, len(self._auto_codes))))
+        self._lb_audio.config(height=max(2, min(8, len(self._audio_codes))))
         for i, code in enumerate(self._audio_codes):
             label = self._lang_name(code)
             if i == 0:
@@ -545,6 +588,15 @@ class DownloadWindow(tk.Toplevel):
                                  t("url_err_ytdlp", path=ytdlp),
                                  parent=self)
             return
+
+        # Sous-titres cochés mais aucune langue retenue (un clic sur la
+        # langue présélectionnée la désélectionne) : demander avant de
+        # télécharger sans eux.
+        if self._probe_res and self._probed_url == url:
+            _txt, alert = self._sel_summary()
+            if alert and not messagebox.askyesno(
+                    t("url_err_title"), t("url_confirm_no_subs"), parent=self):
+                return
 
         outdir = self._dir_var.get().strip() or self._parent.root_dir
         os.makedirs(outdir, exist_ok=True)

@@ -19,6 +19,10 @@ from ui.app import TranslatorApp
 
 def main() -> None:
     app = TranslatorApp()
+    # Tk initialisé : retirer les variables PyInstaller avant de lancer quoi
+    # que ce soit (gestionnaire de fichiers, sous-processus…), cf. pyi_env.py
+    from pyi_env import clean_inherited_env
+    clean_inherited_env()
     app.mainloop()
 
 

@@ -30,7 +30,14 @@ def _resolve_base_dir() -> Path:
 
 BASE_DIR = _resolve_base_dir()
 os.environ["TRANSCRIBE_BASE_DIR"] = str(BASE_DIR)
-sys.path.insert(0, str(BASE_DIR))
+# Exécutable PyInstaller : NE PAS ajouter son dossier (la racine de la clé)
+# à sys.path. Depuis PyInstaller 6, les modules embarqués sont cherchés dans
+# l'ordre de sys.path : un ancien dialog_windows.py, main_window.py… resté à
+# la racine passerait AVANT la version compilée — constaté : fenêtre de
+# téléchargement périmée, options de sous-titres/audio jamais transmises.
+# En développement, le dossier du script est déjà sys.path[0].
+if not getattr(sys, "frozen", False) and str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
 # Initialise tr (i18n) AVANT tout import de module UI
 import i18n as _i18n_module
@@ -47,4 +54,8 @@ if __name__ == "__main__":
         app = Transcribe()
     else:
         app = Transcribe(className="Transcribe")
+    # Tk initialisé : retirer les variables PyInstaller avant de lancer quoi
+    # que ce soit (gestionnaire de fichiers, yt-dlp, ffmpeg…), cf. pyi_env.py
+    from pyi_env import clean_inherited_env
+    clean_inherited_env()
     app.mainloop()
