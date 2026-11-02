@@ -3,7 +3,7 @@
 #
 # NOTE : les paquets de traduction Argos Translate ne passent PAS par ce
 # fichier — ils sont installés directement sur la clé (build/argos-data/
-# packages) par setup_venv_lang.sh, via argospm avec ARGOS_PACKAGES_DIR.
+# packages) par setup_python.sh / .bat, via argospm avec ARGOS_PACKAGES_DIR.
 #
 # Format : destination,url[,format]
 #

@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import locale
 import os
+import sys
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAIRES DE LANGUES
@@ -240,14 +241,26 @@ C: dict[str, str] = {
     "gold":   "#F6C90E",
 }
 
+# Polices par système :
+#   Windows : Segoe UI (interface) et Consolas (chasse fixe) ;
+#   Linux   : « sans-serif » et « monospace », les polices par défaut du
+#             bureau choisies par fontconfig (Ubuntu, Noto Sans, DejaVu…) —
+#             l'aspect qu'avait l'application avec le Tk du système.
+# Elles ne s'affichent correctement sous Linux qu'avec un Tk compilé avec Xft :
+# setup_python.sh et compiler_*.sh en installent un (tools/tk-xft) — celui
+# de python-build-standalone ne connaît que les polices bitmap X11 (« fixed »).
+_WINDOWS  = sys.platform.startswith("win")
+UI_FONT   = "Segoe UI" if _WINDOWS else "sans-serif"
+MONO_FONT = "Consolas" if _WINDOWS else "monospace"
+
 F: dict[str, tuple] = {
-    "title":    ("Segoe UI", 15, "bold"),
-    "subtitle": ("Segoe UI", 9),
-    "head":     ("Segoe UI", 10, "bold"),
-    "body":     ("Segoe UI", 11),
-    "small":    ("Segoe UI", 9),
-    "btn":      ("Segoe UI", 10, "bold"),
-    "mono":     ("Consolas", 10),
+    "title":    (UI_FONT, 15, "bold"),
+    "subtitle": (UI_FONT, 9),
+    "head":     (UI_FONT, 10, "bold"),
+    "body":     (UI_FONT, 11),
+    "small":    (UI_FONT, 9),
+    "btn":      (UI_FONT, 10, "bold"),
+    "mono":     (MONO_FONT, 10),
 }
 
 

@@ -11,7 +11,7 @@ Usage :
         [--glossary FICHIER] [--format auto|chat|translategemma]
         [--limit N] [--fresh] [-o SORTIE]
 
-Lancé par l'onglet « Livre » de truchement (avec le python du venv de la clé),
+Lancé par l'onglet « Livre » de truchement (avec le Python portable de la clé),
 ou à la main. Dépendances : requests, beautifulsoup4 + lxml, PyMuPDF (pour les
 PDF) — toutes présentes dans requirements.txt.
 
@@ -1460,7 +1460,7 @@ def run(args, source: Path, out: Path, base: Path, job: Job) -> int:
         import requests  # noqa: F401
         import bs4  # noqa: F401
     except ImportError as exc:
-        event("error", msg=f"module manquant dans le venv : {exc.name}")
+        event("error", msg=f"module manquant dans le Python portable : {exc.name}")
         log(f"Module Python manquant : {exc.name} (pip install -r requirements.txt)")
         return 2
 

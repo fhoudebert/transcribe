@@ -35,7 +35,7 @@ def setup_html_tags(widget: tk.Text) -> None:
     widget.tag_configure("html:bi",     font=(fam, sz, "bold italic"))
     widget.tag_configure("html:u",      underline=True)
     widget.tag_configure("html:s",      overstrike=True)
-    widget.tag_configure("html:code",   font=("Consolas", sz - 1),
+    widget.tag_configure("html:code",   font=(F["mono"][0], sz - 1),
                          background=C["border"], foreground=C["text"])
     widget.tag_configure("html:sup",    font=(fam, sz - 3), offset=4)
     widget.tag_configure("html:sub",    font=(fam, sz - 3), offset=-4)
@@ -49,7 +49,7 @@ def setup_html_tags(widget: tk.Text) -> None:
     widget.tag_configure("html:hr",     foreground=C["border"])
     widget.tag_configure("html:p",      spacing1=6)
     widget.tag_configure("html:li",     lmargin1=20, lmargin2=30)
-    widget.tag_configure("html:b+code", font=("Consolas", sz - 1, "bold"),
+    widget.tag_configure("html:b+code", font=(F["mono"][0], sz - 1, "bold"),
                          background=C["border"])
 
 

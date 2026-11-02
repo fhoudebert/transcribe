@@ -25,6 +25,7 @@ import os
 import re
 import threading
 import time
+import traceback
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -169,12 +170,27 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
     # ── Fermeture ─────────────────────────────────────────────────────────────
 
     def _on_close(self) -> None:
-        # Traduction de livre en cours : proposer une pause propre d'abord.
-        if not self._book_confirm_close():
-            return
+        """
+        Fermeture par ✕. Elle ne doit JAMAIS être bloquée par une erreur :
+        une exception levée ici annule silencieusement la fermeture (la
+        fenêtre reste ouverte, le ✕ semble inactif). Seul un refus explicite
+        de l'utilisateur (traduction de livre en cours) l'empêche.
+        """
+        try:
+            # Traduction de livre en cours : proposer une pause propre d'abord.
+            if not self._book_confirm_close():
+                return
+        except Exception:
+            traceback.print_exc()
         for key in list(self._progress_timers):
-            self._stop_progress_timer(key)
-        close_all_conns()
+            try:
+                self._stop_progress_timer(key)
+            except Exception:
+                traceback.print_exc()
+        try:
+            close_all_conns()
+        except Exception:
+            traceback.print_exc()
         self.destroy()
 
     # ── Chronomètre de progression (texte ET fichier) ─────────────────────────
@@ -317,36 +333,40 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
         lb.pack(fill="x")
         li = ttk.Frame(lb, style="P.TFrame")
         li.pack(fill="x", padx=20, pady=14)
-        li.columnconfigure(0, weight=1)
-        li.columnconfigure(2, weight=1)
 
-        sf = ttk.Frame(li, style="P.TFrame")
-        sf.grid(row=0, column=0, sticky="ew")
-        sf.columnconfigure(0, weight=1)
-        self.lbl_src = ttk.Label(sf, text="", style="PH.TLabel")
+        # Une seule grille à deux lignes : libellés (ligne 0), puis listes et
+        # boutons (ligne 1). « Détecter » et « Inverser » partagent la ligne
+        # des listes déroulantes et le même style : même hauteur (celle de la
+        # ligne, sticky "ns") et même alignement.
+        # Colonnes : 0 liste source | 1 Détecter | 2 Inverser | 3 liste cible
+        li.columnconfigure(0, weight=1)
+        li.columnconfigure(2, weight=0)
+        li.columnconfigure(3, weight=1)
+
+        self.lbl_src = ttk.Label(li, text="", style="PH.TLabel")
         self.lbl_src.grid(row=0, column=0, sticky="w", pady=(0, 5))
         src_langs = sorted(MAPPING.keys(), key=lambda c: LANG_NAMES.get(c, c))
         self.cb_src = ttk.Combobox(
-            sf, values=[LANG_NAMES.get(c, c) for c in src_langs],
+            li, values=[LANG_NAMES.get(c, c) for c in src_langs],
             state="readonly", width=28, font=F["body"],
         )
         self.cb_src.grid(row=1, column=0, sticky="ew")
         self.cb_src.bind("<<ComboboxSelected>>", self._on_src_change)
+        # Détection de la langue source d'après le texte (ui/app.py
+        # _detect_source, module detection.py).
+        self.btn_detect = ttk.Button(li, text="", style="Detect.TButton",
+                                     command=self._detect_source)
+        self.btn_detect.grid(row=1, column=1, sticky="ns", padx=(8, 0))
 
-        sbf = ttk.Frame(li, style="P.TFrame")
-        sbf.grid(row=0, column=1, padx=14, sticky="s", pady=(0, 2))
-        self.btn_swap = ttk.Button(sbf, text="", style="Swap.TButton",
+        self.btn_swap = ttk.Button(li, text="", style="Detect.TButton",
                                    command=self._swap_langs)
-        self.btn_swap.pack()
+        self.btn_swap.grid(row=1, column=2, sticky="ns", padx=14)
 
-        tf = ttk.Frame(li, style="P.TFrame")
-        tf.grid(row=0, column=2, sticky="ew")
-        tf.columnconfigure(0, weight=1)
-        self.lbl_tgt = ttk.Label(tf, text="", style="PH.TLabel")
-        self.lbl_tgt.grid(row=0, column=0, sticky="w", pady=(0, 5))
-        self.cb_tgt = ttk.Combobox(tf, values=[], state="readonly",
+        self.lbl_tgt = ttk.Label(li, text="", style="PH.TLabel")
+        self.lbl_tgt.grid(row=0, column=3, sticky="w", pady=(0, 5))
+        self.cb_tgt = ttk.Combobox(li, values=[], state="readonly",
                                    width=28, font=F["body"])
-        self.cb_tgt.grid(row=1, column=0, sticky="ew")
+        self.cb_tgt.grid(row=1, column=3, sticky="ew")
 
         ttk.Separator(self).pack(fill="x")
 
@@ -508,6 +528,120 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
                 w["tgt"].insert("1.0", old_src)
             w["tgt"].configure(state="disabled")
             self._upd_chars(i)
+
+    # ── Détection de la langue source ─────────────────────────────────────────
+
+    def _detect_source(self) -> None:
+        """
+        Bouton « Détecter » : identifie la langue du texte source et la
+        sélectionne comme langue source. Le texte examiné est celui de
+        l'onglet affiché — Texte 1 ou 2, ou le fichier choisi dans l'onglet
+        Fichier — sinon le premier onglet Texte non vide. Le modèle se
+        charge au premier clic (~1 s) : détection en thread, sans figer l'UI.
+        """
+        t = self._t
+        try:
+            current = self.nb.index("current")
+        except tk.TclError:
+            current = 0
+
+        text, path = "", None
+        if current in (0, 1):
+            text = self._tabs[current]["src"].get("1.0", "end-1c")
+        elif current == 2:
+            fpath = self._file_path.get().strip()
+            if fpath and os.path.isfile(fpath):
+                path = fpath
+        if path is None and not text.strip():
+            for i in range(2):
+                text = self._tabs[i]["src"].get("1.0", "end-1c")
+                if text.strip():
+                    break
+        if path is None and not text.strip():
+            messagebox.showinfo(t["error_title"],
+                                t.get("detect_no_text",
+                                      "Enter or choose a text first."))
+            return
+
+        self.btn_detect.configure(state="disabled")
+        self.lbl_status.configure(text=t.get("detecting", "Detecting…"))
+        installed = list(MAPPING)
+
+        def run() -> None:
+            import detection
+            try:
+                sample = (detection.sample_from_file(path) if path else text)
+                result = detection.detect(sample, installed)
+                self.after(0, lambda: self._on_detected(result))
+            except detection.DetectionError as exc:
+                self.after(0, lambda e=exc: self._on_detect_err(e))
+            except Exception as exc:          # numpy absent, modèle illisible…
+                err = detection.DetectionError("ERROR", repr(exc))
+                self.after(0, lambda e=err: self._on_detect_err(e))
+
+        threading.Thread(target=run, daemon=True, name="detect").start()
+
+    @staticmethod
+    def _detected_name(code: str) -> str:
+        """Nom affichable d'un code langid (no→nb), ou le code brut."""
+        code = {"no": "nb"}.get(code, code)
+        return LANG_NAMES.get(code, code)
+
+    def _on_detected(self, r: dict) -> None:
+        t = self._t
+        self.btn_detect.configure(state="normal")
+        code = r["code"]
+        if code is None:
+            self.lbl_status.configure(text="")
+            messagebox.showinfo(
+                t["error_title"],
+                t.get("detect_not_installed",
+                      "Detected language: {lang}, but no installed "
+                      "translation package starts from it.").format(
+                          lang=self._detected_name(r["top"])),
+            )
+            return
+
+        old_src = lang_code(self.cb_src.get()) if self.cb_src.get() else ""
+        old_tgt = lang_code(self.cb_tgt.get()) if self.cb_tgt.get() else ""
+        if code != old_src:
+            self.cb_src.set(LANG_NAMES.get(code, code))
+            self._on_src_change()
+            # Garder la cible si la paire existe ; si le texte est dans
+            # la langue cible, inverser (comme le bouton ⇄) ; sinon la
+            # cible par défaut choisie par _on_src_change.
+            targets = MAPPING.get(code, [])
+            if old_tgt and old_tgt != code and old_tgt in targets:
+                self._select_target(old_tgt)
+            elif old_tgt == code and old_src in targets:
+                self._select_target(old_src)
+            # Modèle de la nouvelle paire chargé en arrière-plan.
+            new_tgt = lang_code(self.cb_tgt.get()) if self.cb_tgt.get() else None
+            if new_tgt:
+                threading.Thread(target=warm_up, args=(code, new_tgt),
+                                 daemon=True, name="warm-up").start()
+
+        key = "detected_unsure" if r["unsure"] else "detected"
+        default = ("Detected: {lang} ({pct} %) — uncertain, please check"
+                   if r["unsure"] else "Detected: {lang} ({pct} %)")
+        self.lbl_status.configure(text=t.get(key, default).format(
+            lang=LANG_NAMES.get(code, code), pct=round(r["prob"] * 100)))
+
+    def _on_detect_err(self, exc) -> None:
+        t = self._t
+        self.btn_detect.configure(state="normal")
+        self.lbl_status.configure(text="")
+        if exc.code == "TOO_SHORT":
+            msg = t.get("detect_too_short", "Text too short to detect its language.")
+        elif exc.code == "NO_MODULE":
+            msg = t.get("detect_no_module",
+                        "Language detection unavailable (py3langid missing): "
+                        "run setup_python again.") + (
+                f"\n\n{exc.detail}\nPython : {bootstrap.VENV_DIR_RELATIVE}")
+        else:
+            msg = t.get("detect_error", "Detection failed:\n{err}").format(
+                err=exc.detail or exc.code)
+        messagebox.showwarning(t["error_title"], msg)
 
     # ── Traduction de texte ───────────────────────────────────────────────────
 
@@ -672,10 +806,11 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
     @staticmethod
     def _venv_missing_msg() -> str:
         return (
-            f"Python venv not found at {bootstrap.VENV_DIR_RELATIVE}\n\n"
-            f"Le venv Python figé ({bootstrap.VENV_DIR_RELATIVE}) est introuvable à côté "
-            "de l'exécutable. Vérifiez que le dossier 'build' a bien été "
-            "copié sur la clé USB, au même niveau que l'application."
+            f"Portable Python not found at {bootstrap.VENV_DIR_RELATIVE}\n\n"
+            f"Le Python portable ({bootstrap.VENV_DIR_RELATIVE}) est introuvable à côté "
+            "de l'exécutable. Lancez setup_python.sh (Linux) ou "
+            "setup_python.bat (Windows), ou vérifiez que le dossier 'build' "
+            "a bien été copié sur la clé USB, au même niveau que l'application."
         )
 
     @staticmethod
@@ -710,12 +845,12 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
         sys.path / l'absence de module homonyme, pas réinstaller).
         """
         return (
-            f"Le venv ({bootstrap.VENV_DIR_RELATIVE}) fonctionne correctement — "
+            f"Le Python portable ({bootstrap.VENV_DIR_RELATIVE}) fonctionne correctement — "
             "argostranslate y est bien installé — mais son chargement a "
             "échoué dans le processus de l'application elle-même.\n\n"
             f"Détail technique : {detail}\n\n"
             "Cause probable : un module portant le même nom est chargé "
-            "depuis un autre emplacement avant celui du venv, ou un "
+            "depuis un autre emplacement avant celui du Python portable, ou un "
             "conflit de version d'une dépendance déjà importée dans ce "
             "process. Essayez de redémarrer l'application ; si le "
             "problème persiste, signalez ce message."
@@ -776,6 +911,7 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
         self.lbl_src.configure(text=t["source_lang"])
         self.lbl_tgt.configure(text=t["target_lang"])
         self.btn_swap.configure(text=t["swap_btn"])
+        self.btn_detect.configure(text=t.get("detect_btn", "Detect"))
         self.lbl_ui.configure(text=t["ui_lang"] + " :")
 
         # Le suffixe "via English" des paires pivot est localisé : régénérer

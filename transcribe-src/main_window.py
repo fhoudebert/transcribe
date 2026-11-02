@@ -28,7 +28,7 @@ _DETECT_RE = re.compile(r"auto-detected language:\s*([a-z]{2,3})")
 from app_styles import (
     BG, BG2, BG3, BG4, ACCENT, GREEN, WARN, DANGER, TEAL,
     FG, FG2, BORDER,
-    FONT_MONO, FONT_UI, FONT_H1, FONT_H2, FONT_SMALL, FONT_INFO,
+    FONT_MONO, FONT_UI, FONT_H1, FONT_H2, FONT_SMALL, FONT_INFO, UI_FONT,
     mkbtn, section, hdivider, checkbox, apply_ttk_style, _adj,
 )
 from recorder_window import RecorderWindow
@@ -163,18 +163,21 @@ class Transcribe(tk.Tk):
     @staticmethod
     def _python_exe() -> str:
         """
-        Retourne l'interpréteur Python du venv portable.
+        Retourne l'interpréteur Python portable de la clé.
 
-        La clé est bi-OS : les DEUX venvs peuvent être présents côte à
-        côte (build/python/venv pour Linux/Mac, build\\python\\venv-windows
-        pour Windows). Ne tester que les candidats de l'OS courant —
-        sous Windows, build/python/venv/bin/python3 est un binaire ELF
-        Linux parfaitement visible sur l'exFAT : le lancer donnerait
-        [WinError 193] %1 n'est pas une application Win32 valide.
+        La clé est bi-OS : les DEUX Pythons (python-build-standalone,
+        installés par setup_python.sh / .bat) sont côte à côte —
+        build/python/venv et build\\python\\venv-windows. Ne tester que les
+        candidats de l'OS courant — sous Windows, build/python/venv/bin/
+        python3.12 est un binaire ELF Linux parfaitement visible sur
+        l'exFAT : le lancer donnerait [WinError 193] %1 n'est pas une
+        application Win32 valide. build/python/linux et windows (version
+        précédente de setup_python) restent reconnus en repli.
 
         Ordre de recherche (OS courant uniquement) :
-          Windows : venv-windows\\Scripts\\python.exe, venv\\Scripts\\python.exe
-          Linux/Mac : venv/bin/python3, venv/bin/python
+          Windows : venv-windows\\python.exe, windows\\python.exe,
+                    venv-windows\\Scripts\\python.exe (ancien venv)
+          Linux : venv/bin/python3.12, linux/bin/python3.12, venv/bin/python3
           puis sys.executable (dev non-frozen), puis python système.
         """
         # Racine = dossier du binaire (frozen) ou du script (dev)
@@ -185,18 +188,20 @@ class Transcribe(tk.Tk):
                 "TRANSCRIBE_BASE_DIR",
                 os.path.dirname(os.path.abspath(__file__)))
 
-        # Candidats du venv portable, propres à l'OS courant
+        # Candidats du Python portable, propres à l'OS courant
         pyroot = os.path.join(root, "build", "python")
         if IS_WINDOWS:
             candidates = (
+                os.path.join(pyroot, "venv-windows", "python.exe"),
+                os.path.join(pyroot, "windows", "python.exe"),
                 os.path.join(pyroot, "venv-windows", "Scripts",
                              "python.exe"),
-                os.path.join(pyroot, "venv", "Scripts", "python.exe"),
             )
         else:
             candidates = (
+                os.path.join(pyroot, "venv", "bin", "python3.12"),
+                os.path.join(pyroot, "linux", "bin", "python3.12"),
                 os.path.join(pyroot, "venv", "bin", "python3"),
-                os.path.join(pyroot, "venv", "bin", "python"),
             )
         for p in candidates:
             if os.path.isfile(p):
@@ -414,9 +419,7 @@ class Transcribe(tk.Tk):
             canvas.create_oval(2, 2, icon_size-2, icon_size-2,
                                 fill=ACCENT, outline="")
             canvas.create_text(icon_size//2, icon_size//2, text="T",
-                                font=("Segoe UI" if IS_WINDOWS
-                                      else "Helvetica Neue",
-                                      icon_size // 2, "bold"),
+                                font=(UI_FONT, icon_size // 2, "bold"),
                                 fill=BG2)
 
         # ── Titre + sous-titre ────────────────────────────────
@@ -448,8 +451,7 @@ class Transcribe(tk.Tk):
                 bg=col, fg=fg,
                 activebackground=_adj(ACCENT, 20), activeforeground=FG,
                 relief="flat", bd=0, cursor="hand2",
-                font=("Segoe UI" if IS_WINDOWS else "Helvetica Neue",
-                      9, "bold"),
+                font=(UI_FONT, 9, "bold"),
                 padx=8, pady=4,
                 command=lambda c=code: self._switch_ui_lang(c),
             ).pack(side="left", padx=2)
@@ -461,8 +463,7 @@ class Transcribe(tk.Tk):
             bg=BG2, fg=FG2,
             activebackground=BG3, activeforeground=FG,
             relief="flat", bd=0, cursor="hand2",
-            font=("Segoe UI" if IS_WINDOWS else "Helvetica Neue",
-                  11, "bold"),
+            font=(UI_FONT, 11, "bold"),
             padx=4, pady=2,
             command=lambda: AboutWindow(self),
         ).pack(side="left")

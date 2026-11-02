@@ -4,7 +4,7 @@ ui/book_tab.py — Onglet « Livre » : traduction de livre via llama.cpp local
 BookTabMixin, mélangé dans TranslatorApp comme FileTabMixin / DefTabMixin.
 
 Le travail est fait par traduire-livre.py (racine de la clé, à côté de
-l'exécutable — déployé par compile_app.py), lancé avec le python du venv en
+l'exécutable — déployé par compile_app.py), lancé avec le Python portable en
 SOUS-PROCESSUS : une traduction de livre dure des heures, elle doit pouvoir
 être arrêtée net (bouton Arrêter) sans rien laisser d'incohérent dans ce
 process, et reprendre ensuite grâce au cache du script.

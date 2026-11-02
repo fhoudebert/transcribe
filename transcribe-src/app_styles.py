@@ -22,12 +22,23 @@ FG2    = "#8b949e"
 BORDER = "#30363d"
 
 # ── Polices ───────────────────────────────────────────────────
-FONT_MONO  = ("Consolas", 9)           if IS_WINDOWS else ("Monospace", 9)
-FONT_UI    = ("Segoe UI", 10)          if IS_WINDOWS else ("Helvetica Neue", 10)
-FONT_H1    = ("Segoe UI", 14, "bold")  if IS_WINDOWS else ("Helvetica Neue", 14, "bold")
-FONT_H2    = ("Segoe UI", 10, "bold")  if IS_WINDOWS else ("Helvetica Neue", 10, "bold")
-FONT_SMALL = ("Segoe UI",  8)          if IS_WINDOWS else ("Helvetica Neue",  8)
-FONT_INFO  = ("Consolas",  9)          if IS_WINDOWS else ("Monospace", 9)
+# Polices par système :
+#   Windows : Segoe UI (interface) et Consolas (chasse fixe) ;
+#   Linux   : « sans-serif » et « monospace », les polices par défaut du
+#             bureau choisies par fontconfig (Ubuntu, Noto Sans, DejaVu…) —
+#             l'aspect qu'avait l'application avec le Tk du système.
+# Elles ne s'affichent correctement sous Linux qu'avec un Tk compilé avec Xft :
+# setup_python.sh et compiler_*.sh en installent un (tools/tk-xft) — celui
+# de python-build-standalone ne connaît que les polices bitmap X11 (« fixed »).
+UI_FONT   = "Segoe UI" if IS_WINDOWS else "sans-serif"
+MONO_FONT = "Consolas" if IS_WINDOWS else "monospace"
+
+FONT_MONO  = (MONO_FONT, 9)
+FONT_UI    = (UI_FONT, 10)
+FONT_H1    = (UI_FONT, 14, "bold")
+FONT_H2    = (UI_FONT, 10, "bold")
+FONT_SMALL = (UI_FONT,  8)
+FONT_INFO  = (MONO_FONT, 9)
 
 
 # ── Helpers couleur ───────────────────────────────────────────

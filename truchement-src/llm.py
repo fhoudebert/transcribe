@@ -233,8 +233,8 @@ def translate_text(text: str, src: str, tgt: str, settings: dict) -> str:
     try:
         import requests  # noqa: F401  (dépendance de LlamaClient)
     except ImportError:
-        raise RuntimeError("le module « requests » est absent du venv "
-                           "(pip install -r requirements.txt)")
+        raise RuntimeError("le module « requests » est absent du Python portable "
+                           "(relancez setup_python.sh ou setup_python.bat)")
 
     url, model = settings.get("url", ""), settings.get("model", "")
     key = (server_root(url), model)
