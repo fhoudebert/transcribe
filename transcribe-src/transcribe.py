@@ -54,4 +54,8 @@ if __name__ == "__main__":
         app = Transcribe()
     else:
         app = Transcribe(className="Transcribe")
+    # Tk initialisé : retirer les variables PyInstaller avant de lancer quoi
+    # que ce soit (gestionnaire de fichiers, yt-dlp, ffmpeg…), cf. pyi_env.py
+    from pyi_env import clean_inherited_env
+    clean_inherited_env()
     app.mainloop()

@@ -1,0 +1,11 @@
+settings.json
+__pycache__/
+*.pyc
+*.patch
+build
+download-assistant
+truchement-src/build
+truchement-src/dist
+transcribe-src/build
+transcribe-src/dist
+install-assistant.log
