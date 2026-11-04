@@ -1,24 +1,33 @@
 # ==============================================================================
-#  Linux x86-64 et arm64 — compilation de transcribe et truchement
+#  Linux x86-64 / arm64 et Windows x64 — compilation de transcribe et truchement
 #
 #  Une clé par architecture : ce workflow produit, pour chacune, l'archive à
-#  décompresser à la racine d'une clé préparée par setupPython_and_download.sh
-#  sur une machine de la même architecture :
+#  décompresser à la racine de la clé :
 #    transcribe-linux-<arch>.tar.xz  transcribe, truchement, scripts déployés,
-#                                    assets/, i18n/, build/whisper/
+#                                    assets/, i18n/, build/whisper/, scripts
+#                                    *.sh d'installation et d'usage, download*,
+#                                    requirements.txt, tools/tk-xft, LICENSE
 #    whisper-cli-linux-<arch>.tar.xz whisper-cli + bibliothèques (downloads.csv)
+#    transcribe-windows-x64.zip      transcribe.exe, truchement.exe, scripts
+#                                    déployés, assets/, i18n/, scripts *.bat,
+#                                    download*, requirements.txt, LICENSE
+#                                    (whisper-cli Windows : zip officiel de
+#                                    downloads.csv)
+#  puis setupPython_and_download.sh (.bat sous Windows) prépare le Python
+#  portable et les composants. Les scripts compiler* ne sont pas inclus : les
+#  sources (transcribe-src/, truchement-src/) ne sont pas dans l'archive.
 #
-#  Compilé dans un conteneur ubuntu:22.04 : PyInstaller embarque les
+#  Linux est compilé dans un conteneur ubuntu:22.04 : PyInstaller embarque les
 #  bibliothèques système de la machine de compilation (X11, Xft, fontconfig…),
 #  dont la glibc fixe le minimum requis sur les machines cibles — 2.35 ici
 #  (Ubuntu 22.04+, Debian 12, Raspberry Pi OS Bookworm, Linux Mint 21+), au
 #  lieu de 2.38 avec une image ubuntu-24.04.
 #
 #  Déclenchement : à la main (onglet Actions → Run workflow), ou en poussant
-#  une étiquette linux-* (git tag linux-1 && git push origin linux-1) : les
+#  une étiquette linux-* (git tag linux-2 && git push origin linux-2) : les
 #  archives sont alors aussi publiées dans la release de cette étiquette.
 # ==============================================================================
-name: Linux (x86-64, arm64)
+name: Linux et Windows
 
 on:
   workflow_dispatch:
@@ -82,11 +91,18 @@ jobs:
       - name: Archives
         run: |
           mkdir -p dist
+          # scripts *.sh sauf compiler* (sources absentes de l'archive) ;
+          # tools/tk-xft : Tk avec Xft, posé par setup_python.sh
+          scripts=$(ls *.sh | grep -v '^compiler')
           tar -cJf "dist/transcribe-linux-${{ matrix.arch }}.tar.xz" \
             transcribe truchement traduire-srt.py nettoyer-srt.py \
-            traduire-livre.py assets i18n build/whisper
+            traduire-livre.py assets i18n build/whisper \
+            $scripts download_from_csv.py downloads.csv requirements.txt \
+            tools/tk-xft/install_tk_xft.sh "tools/tk-xft/$(uname -m)" \
+            LICENSE README.md
           tar -C build/whisper -cJf "dist/whisper-cli-linux-${{ matrix.arch }}.tar.xz" .
           file transcribe truchement build/whisper/whisper-cli
+          tar -tJf "dist/transcribe-linux-${{ matrix.arch }}.tar.xz" | grep -v '^assets/\|^i18n/\|^build/'
           ls -l dist
 
       - uses: actions/upload-artifact@v7
@@ -95,9 +111,68 @@ jobs:
           path: dist/*.tar.xz
           if-no-files-found: error
 
+  windows:
+    name: Windows x64
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Python portable (sans paquets de langues Argos)
+        shell: cmd
+        run: call setup_python.bat --no-lang || exit /b 1
+
+      - name: Compilation de transcribe et truchement
+        shell: cmd
+        run: call compiler.bat || exit /b 1
+
+      - name: Essai de lancement
+        shell: pwsh
+        run: |
+          # Toujours en marche au bout de 30 s, sans fenêtre d'erreur
+          # PyInstaller (« Unhandled exception… ») = démarrage réussi
+          $failed = $false
+          foreach ($app in 'transcribe', 'truchement') {
+            $p = Start-Process -FilePath ".\$app.exe" -PassThru
+            Start-Sleep -Seconds 30
+            $titles = @(Get-Process -Name $app -ErrorAction SilentlyContinue |
+                        ForEach-Object { $_.MainWindowTitle } | Where-Object { $_ })
+            if ($p.HasExited) {
+              Write-Host "::error::$app s'est arrêté (code $($p.ExitCode))"; $failed = $true
+            } elseif ($titles -match 'exception|error|erreur') {
+              Write-Host "::error::$app : fenêtre d'erreur « $($titles -join ' | ') »"; $failed = $true
+            } else {
+              Write-Host "$app : en marche, fenêtre(s) : $($titles -join ' | ')"
+            }
+            taskkill /PID $p.Id /T /F 2>&1 | Out-Null
+          }
+          if ($failed) { exit 1 }
+
+      - name: Archive
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          # scripts *.bat sauf compiler* (sources absentes de l'archive)
+          $scripts = Get-ChildItem *.bat | Where-Object Name -notlike 'compiler*' |
+                     ForEach-Object Name
+          $files = @('transcribe.exe', 'truchement.exe', 'traduire-srt.py',
+                     'nettoyer-srt.py', 'traduire-livre.py', 'assets', 'i18n',
+                     'download_from_csv.py', 'downloads.csv', 'requirements.txt',
+                     'LICENSE', 'README.windows.md') + $scripts
+          7z a -tzip -mx=9 dist\transcribe-windows-x64.zip @files
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          7z l dist\transcribe-windows-x64.zip | Select-String -NotMatch '(assets|i18n)\\'
+          Get-ChildItem dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows-x64
+          path: dist/*.zip
+          if-no-files-found: error
+
   release:
     name: Release
-    needs: build
+    needs: [build, windows]
     if: startsWith(github.ref, 'refs/tags/linux-')
     runs-on: ubuntu-24.04
     permissions:
@@ -115,5 +190,5 @@ jobs:
         run: |
           gh release view "$TAG" > /dev/null 2>&1 \
             || gh release create "$TAG" --title "$TAG" \
-                 --notes "transcribe et truchement pour Linux x86-64 et arm64"
-          gh release upload "$TAG" dist/*.tar.xz --clobber
+                 --notes "transcribe et truchement pour Linux x86-64, Linux arm64 et Windows x64"
+          gh release upload "$TAG" dist/* --clobber
