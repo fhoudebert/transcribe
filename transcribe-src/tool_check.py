@@ -20,6 +20,7 @@ import errno
 import os
 import platform
 import subprocess
+import sys
 
 from app_config import IS_WINDOWS, NO_WINDOW
 from i18n import t
@@ -45,6 +46,24 @@ def _mount_point(path: str) -> str:
             break
         p = parent
     return p
+
+
+def _quarantined(path: str) -> bool:
+    try:
+        return subprocess.run(["xattr", "-p", "com.apple.quarantine", path],
+                              capture_output=True).returncode == 0
+    except OSError:
+        return False
+
+
+def _app_root(path: str) -> str:
+    """Racine de l'application : le dossier qui contient build/."""
+    p = os.path.abspath(path)
+    while True:
+        parent = os.path.dirname(p)
+        if os.path.basename(p) == "build" or parent == p:
+            return parent
+        p = parent
 
 
 def _system() -> str:
@@ -83,14 +102,19 @@ def check(name: str, path: str, timeout: int = 20) -> str | None:
     # Droit d'exécution (Linux) : bit x absent, ou clé montée « noexec »
     if not IS_WINDOWS and not os.access(path, os.X_OK):
         noexec = False
-        try:
-            noexec = bool(os.statvfs(path).f_flag & getattr(os, "ST_NOEXEC", 8))
+        try:                        # os.ST_NOEXEC : Linux seulement
+            noexec = bool(os.statvfs(path).f_flag & getattr(os, "ST_NOEXEC", 0))
         except OSError:
             pass
         if noexec:
             return t("tool_noexec_mount", name=name, path=path,
                      mount=_mount_point(path))
         return t("tool_not_exec", name=name, path=path)
+
+    # macOS : fichier marqué « téléchargé d'Internet » (archive ouverte depuis
+    # le navigateur) → Gatekeeper refuse de le lancer, ou le tue (SIGKILL)
+    if sys.platform == "darwin" and _quarantined(path):
+        return t("tool_quarantine", name=name, path=path, root=_app_root(path))
 
     arg = "--version" if name == "yt-dlp" else "-version"
     try:
@@ -122,6 +146,9 @@ def check(name: str, path: str, timeout: int = 20) -> str | None:
         if IS_WINDOWS and code in _WIN_BAD_IMAGE:
             return (t("tool_bad_format", name=name, path=path,
                       system=_system()) + _fix(name, path))
+        if sys.platform == "darwin" and code == -9 and not detail:
+            # SIGKILL sans un mot : signature refusée par macOS
+            return t("tool_mac_killed", name=name, path=path) + _fix(name, path)
         if not IS_WINDOWS and code < 0:             # tué par un signal
             detail = detail or t("tool_signal", sig=-code)
         shown = (hex(code & 0xFFFFFFFF)

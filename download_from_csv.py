@@ -55,9 +55,10 @@ def current_os() -> str:
         return override
     if sys.platform.startswith("win"):
         return "win"
+    arch = _ARCH.get(platform.machine().lower(), platform.machine().lower())
     if sys.platform == "darwin":
-        return "mac"
-    return "linux-" + _ARCH.get(platform.machine().lower(), platform.machine().lower())
+        return "mac-" + arch
+    return "linux-" + arch
 
 
 # Noms d'architecture → étiquettes du CSV
@@ -70,9 +71,10 @@ def _norm_tag(t: str) -> str:
         return "win"
     if t in ("macos", "darwin"):
         return "mac"
-    if t.startswith("linux-"):
-        arch = t[len("linux-"):]
-        return "linux-" + _ARCH.get(arch, arch)
+    for fam in ("linux", "mac", "macos", "darwin"):
+        if t.startswith(fam + "-"):
+            arch = t[len(fam) + 1:]
+            return ("linux" if fam == "linux" else "mac") + "-" + _ARCH.get(arch, arch)
     return t
 
 
@@ -80,10 +82,11 @@ def os_matches(tag: str, cur: str) -> bool:
     t, cur = _norm_tag(tag), _norm_tag(cur)
     if not t or t in ("all", "any") or cur == "all":
         return True
-    # « linux » : toutes les architectures Linux, dans un sens comme dans
-    # l'autre (ligne « linux » ou surcharge CSV_OS=linux).
-    if t == "linux" or cur == "linux":
-        return t.startswith("linux") and cur.startswith("linux")
+    # « linux » / « mac » : toutes les architectures de ce système, dans un
+    # sens comme dans l'autre (ligne « linux » ou surcharge CSV_OS=linux).
+    for fam in ("linux", "mac"):
+        if t == fam or cur == fam:
+            return t.startswith(fam) and cur.startswith(fam)
     return t == cur
 
 

@@ -49,7 +49,10 @@ murmurhash==1.0.15
 mwt==0.9.2
 networkx==3.6.1
 numpy==2.4.6
-onnxruntime==1.26.0
+# onnxruntime / torch : plus aucune roue pour macOS Intel (x86-64) après
+# 1.23.2 / 2.2.2 — ces deux versions y sont donc figées.
+onnxruntime==1.26.0 ; sys_platform != "darwin" or platform_machine != "x86_64"
+onnxruntime==1.23.2 ; sys_platform == "darwin" and platform_machine == "x86_64"
 packaging==26.2
 # pillow : conversion png→ico des icônes d'exe par PyInstaller
 # (compile_app.py:icon_args) ; utilisé uniquement à la compilation.
@@ -92,7 +95,8 @@ stanza==1.10.1
 sympy==1.14.0
 thinc==8.3.13
 torch==2.12.0+cpu ; sys_platform == "linux"
-torch==2.12.0 ; sys_platform != "linux"
+torch==2.12.0 ; sys_platform != "linux" and (sys_platform != "darwin" or platform_machine != "x86_64")
+torch==2.2.2 ; sys_platform == "darwin" and platform_machine == "x86_64"
 tqdm==4.68.1
 typer==0.26.7
 typing-inspection==0.4.2

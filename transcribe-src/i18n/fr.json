@@ -216,5 +216,7 @@
     "tool_timeout": "{name} ne répond pas (aucune réponse en {s} s) :\n{path}",
     "tool_signal": "arrêté par le signal {sig}",
     "tool_fix": "\n\nPour l'installer ou le réinstaller : supprimez le dossier\n  {folder}\npuis lancez {script} (composants de downloads.csv).",
-    "tool_fix_ytdlp": "Ou téléchargez-le sur https://github.com/yt-dlp/yt-dlp/releases"
+    "tool_fix_ytdlp": "Ou téléchargez-le sur https://github.com/yt-dlp/yt-dlp/releases",
+    "tool_quarantine": "{name} est bloqué par macOS :\n{path}\n\nLe fichier est marqué « téléchargé d'Internet » (archive ouverte depuis le navigateur). Débloquez le dossier de l'application dans le Terminal :\n  xattr -dr com.apple.quarantine \"{root}\"",
+    "tool_mac_killed": "{name} a été arrêté par macOS au lancement :\n{path}\n\nSignature de code absente ou invalide (fichier modifié ou incomplet)."
 }

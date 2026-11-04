@@ -1,5 +1,7 @@
 # ==============================================================================
-#  Linux x86-64 / arm64 et Windows x64 — compilation de transcribe et truchement
+#  release.yml — compilation de transcribe et truchement pour chaque système :
+#    Linux x86-64 et arm64, Windows x64, macOS Apple Silicon (arm64) et Intel
+#    (x64)
 #
 #  Une clé par architecture : ce workflow produit, pour chacune, l'archive à
 #  décompresser à la racine de la clé :
@@ -7,7 +9,9 @@
 #                                    assets/, i18n/, build/whisper/, scripts
 #                                    *.sh d'installation et d'usage, download*,
 #                                    requirements.txt, tools/tk-xft, LICENSE
-#    whisper-cli-linux-<arch>.tar.xz whisper-cli + bibliothèques (downloads.csv)
+#    transcribe-macos-<arch>.tar.xz  idem pour macOS (whisper-cli statique avec
+#                                    Metal ; pas de Tk Xft, inutile)
+#    whisper-cli-<os>-<arch>.tar.xz  whisper-cli seul (downloads.csv)
 #    transcribe-windows-x64.zip      transcribe.exe, truchement.exe, scripts
 #                                    déployés, assets/, i18n/, scripts *.bat,
 #                                    download*, requirements.txt, LICENSE
@@ -23,22 +27,28 @@
 #  (Ubuntu 22.04+, Debian 12, Raspberry Pi OS Bookworm, Linux Mint 21+), au
 #  lieu de 2.38 avec une image ubuntu-24.04.
 #
+#  macOS : exécutables simples (pas de paquet .app), signés ad hoc, non
+#  notariés. Une archive téléchargée par le navigateur est marquée
+#  « quarantaine » : la débloquer après décompression avec
+#    xattr -dr com.apple.quarantine <dossier>
+#  Intel : runner macos-15-intel (dernière image Intel de GitHub).
+#
 #  Déclenchement : à la main (onglet Actions → Run workflow), ou en poussant
-#  une étiquette linux-* (git tag linux-2 && git push origin linux-2) : les
+#  une étiquette v* ou linux-* (git tag v0.5 && git push origin v0.5) : les
 #  archives sont alors aussi publiées dans la release de cette étiquette.
 # ==============================================================================
-name: Linux et Windows
+name: Release (Linux, Windows, macOS)
 
 on:
   workflow_dispatch:
   push:
-    tags: ["linux-*"]
+    tags: ["v*", "linux-*"]
 
 permissions:
   contents: read
 
 jobs:
-  build:
+  linux:
     name: Linux ${{ matrix.arch }}
     strategy:
       fail-fast: false
@@ -111,6 +121,71 @@ jobs:
           path: dist/*.tar.xz
           if-no-files-found: error
 
+  macos:
+    name: macOS ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-15,       arch: arm64 }
+          - { runner: macos-15-intel, arch: x64 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Python portable (sans paquets de langues Argos)
+        run: bash setup_python.sh --no-lang
+
+      - name: whisper-cli
+        run: bash tools/whisper/build_whisper.sh
+
+      - name: Compilation de transcribe et truchement
+        run: bash compiler.sh
+
+      - name: Essai de lancement
+        run: |
+          # Toujours en marche au bout de 25 s = démarrage réussi
+          # (pas de « timeout » sous macOS : processus en arrière-plan)
+          set +e
+          failed=0
+          for app in transcribe truchement; do
+            ./"$app" > "$app.log" 2>&1 &
+            pid=$!
+            sleep 25
+            if kill -0 "$pid" 2>/dev/null; then
+              kill "$pid"; echo "$app : en marche"
+            else
+              wait "$pid"; echo "::error::$app s'est arrêté (code $?)"
+              tail -20 "$app.log"; failed=1
+            fi
+          done
+          build/whisper/whisper-cli --help > /dev/null || failed=1
+          exit $failed
+
+      - name: Archives
+        run: |
+          mkdir -p dist
+          # scripts *.sh sauf compiler* (sources absentes de l'archive) ;
+          # install_tk_xft.sh : appelé par setup_python.sh, sans effet ici
+          scripts=$(ls *.sh | grep -v '^compiler')
+          tar -cJf "dist/transcribe-macos-${{ matrix.arch }}.tar.xz" \
+            transcribe truchement traduire-srt.py nettoyer-srt.py \
+            traduire-livre.py assets i18n build/whisper \
+            $scripts download_from_csv.py downloads.csv requirements.txt \
+            tools/tk-xft/install_tk_xft.sh LICENSE README.md
+          tar -C build/whisper -cJf "dist/whisper-cli-macos-${{ matrix.arch }}.tar.xz" whisper-cli
+          file transcribe truchement build/whisper/whisper-cli
+          codesign -dv transcribe 2>&1 | grep -i signature || true
+          tar -tJf "dist/transcribe-macos-${{ matrix.arch }}.tar.xz" | grep -v '^assets/\|^i18n/\|^build/'
+          ls -l dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-${{ matrix.arch }}
+          path: dist/*.tar.xz
+          if-no-files-found: error
+
   windows:
     name: Windows x64
     runs-on: windows-2022
@@ -172,8 +247,8 @@ jobs:
 
   release:
     name: Release
-    needs: [build, windows]
-    if: startsWith(github.ref, 'refs/tags/linux-')
+    needs: [linux, macos, windows]
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -190,5 +265,5 @@ jobs:
         run: |
           gh release view "$TAG" > /dev/null 2>&1 \
             || gh release create "$TAG" --title "$TAG" \
-                 --notes "transcribe et truchement pour Linux x86-64, Linux arm64 et Windows x64"
+                 --notes "transcribe et truchement pour Linux (x86-64, arm64), Windows x64 et macOS (Apple Silicon, Intel)"
           gh release upload "$TAG" dist/* --clobber

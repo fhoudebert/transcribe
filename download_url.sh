@@ -27,7 +27,8 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 YTDLP="$SCRIPT_DIR/build/yt-dlp/yt-dlp"
 
-log() { printf '[%(%F %T)T] %s\n' -1 "$*"; }
+# date plutôt que printf '%(…)T' (bash ≥ 4.2) : macOS fournit bash 3.2
+log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 
 URL="${1:-}"
 OUTDIR="${2:-$SCRIPT_DIR}"

@@ -72,6 +72,7 @@ import tempfile
 APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 IS_WINDOWS = os.name == "nt"
 IS_LINUX = sys.platform.startswith("linux")
+IS_MAC = sys.platform == "darwin"
 
 # ── Paquets fournis par le Python portable → jamais embarqués ───────────────────────
 # Noms d'IMPORT (et non de distribution) de ce que porte requirements.txt, y
@@ -413,7 +414,7 @@ def main(argv: list[str]) -> int:
     tmpdir = tempfile.mkdtemp(prefix=f"compile_{name}_")
 
     cmd = [sys.executable, "-m", "PyInstaller",
-           "--onefile", "--noconfirm", "--windowed", "--name", name,
+           "--onefile", "--noconfirm", "--name", name,
            # --clean : repartir d'un cache vide. Sinon PyInstaller peut
            # réutiliser des modules compilés lors d'une compilation
            # précédente (build/), et livrer un exécutable mêlant versions
@@ -424,6 +425,13 @@ def main(argv: list[str]) -> int:
            # -OO sur les seuls modules embarqués : supprime docstrings et
            # assertions (sans effet sur le code chargé du Python portable à l'exécution).
            "--optimize", "2"]
+
+    # --windowed : pas de console sous Windows. Sous macOS, il ajouterait un
+    # paquet .app — combinaison onefile + .app dépréciée par PyInstaller 6
+    # (erreur en v7) : on y produit, comme sous Linux, un simple exécutable,
+    # à lancer depuis le Terminal ou par double-clic.
+    if not IS_MAC:
+        cmd.append("--windowed")
 
     # --strip : retire les tables de symboles des .so collectés. Gain net sous
     # Linux ; ignoré (avec avertissement) sous Windows et déconseillé sous

@@ -243,6 +243,8 @@ C: dict[str, str] = {
 
 # Polices par système :
 #   Windows : Segoe UI (interface) et Consolas (chasse fixe) ;
+#   macOS   : Helvetica Neue et Menlo (Tk Aqua ne connaît pas les alias
+#             « sans-serif » / « monospace ») ;
 #   Linux   : « sans-serif » et « monospace », les polices par défaut du
 #             bureau choisies par fontconfig (Ubuntu, Noto Sans, DejaVu…) —
 #             l'aspect qu'avait l'application avec le Tk du système.
@@ -250,8 +252,12 @@ C: dict[str, str] = {
 # setup_python.sh et compiler_*.sh en installent un (tools/tk-xft) — celui
 # de python-build-standalone ne connaît que les polices bitmap X11 (« fixed »).
 _WINDOWS  = sys.platform.startswith("win")
-UI_FONT   = "Segoe UI" if _WINDOWS else "sans-serif"
-MONO_FONT = "Consolas" if _WINDOWS else "monospace"
+if _WINDOWS:
+    UI_FONT, MONO_FONT = "Segoe UI", "Consolas"
+elif sys.platform == "darwin":          # Tk Aqua : polices du système
+    UI_FONT, MONO_FONT = "Helvetica Neue", "Menlo"
+else:
+    UI_FONT, MONO_FONT = "sans-serif", "monospace"
 
 F: dict[str, tuple] = {
     "title":    (UI_FONT, 15, "bold"),

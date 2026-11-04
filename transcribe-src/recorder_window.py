@@ -287,6 +287,11 @@ class RecorderWindow(tk.Toplevel):
                 return
             cmd = base_in + ["-f", "dshow",
                              "-i", f"audio={dev}"] + base_out
+        elif sys.platform == "darwin":
+            # AVFoundation : « :0 » = premier micro, sans vidéo. macOS demande
+            # l'autorisation d'accès au micro pour le Terminal / l'application.
+            cmd = base_in + ["-f", "avfoundation",
+                             "-i", ":0"] + base_out
         else:
             cmd = base_in + ["-f", "pulse",
                              "-i", "default"] + base_out

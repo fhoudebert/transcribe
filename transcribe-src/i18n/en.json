@@ -216,5 +216,7 @@
     "tool_timeout": "{name} does not respond (no answer within {s} s):\n{path}",
     "tool_signal": "killed by signal {sig}",
     "tool_fix": "\n\nTo install or reinstall it: delete the folder\n  {folder}\nthen run {script} (components of downloads.csv).",
-    "tool_fix_ytdlp": "Or download it from https://github.com/yt-dlp/yt-dlp/releases"
+    "tool_fix_ytdlp": "Or download it from https://github.com/yt-dlp/yt-dlp/releases",
+    "tool_quarantine": "{name} is blocked by macOS:\n{path}\n\nThe file is flagged as \"downloaded from the Internet\" (archive opened from the browser). Unblock the application folder in Terminal:\n  xattr -dr com.apple.quarantine \"{root}\"",
+    "tool_mac_killed": "{name} was killed by macOS on launch:\n{path}\n\nMissing or invalid code signature (modified or incomplete file)."
 }

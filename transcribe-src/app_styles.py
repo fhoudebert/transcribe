@@ -3,6 +3,7 @@ app_styles.py  —  Palette, polices, widgets helpers, style TTK.
 Importe tkinter mais pas les autres modules du projet.
 """
 
+import sys
 import tkinter as tk
 from tkinter import ttk
 from app_config import IS_WINDOWS
@@ -24,14 +25,20 @@ BORDER = "#30363d"
 # ── Polices ───────────────────────────────────────────────────
 # Polices par système :
 #   Windows : Segoe UI (interface) et Consolas (chasse fixe) ;
+#   macOS   : Helvetica Neue et Menlo (Tk Aqua ne connaît pas les alias
+#             « sans-serif » / « monospace ») ;
 #   Linux   : « sans-serif » et « monospace », les polices par défaut du
 #             bureau choisies par fontconfig (Ubuntu, Noto Sans, DejaVu…) —
 #             l'aspect qu'avait l'application avec le Tk du système.
 # Elles ne s'affichent correctement sous Linux qu'avec un Tk compilé avec Xft :
 # setup_python.sh et compiler_*.sh en installent un (tools/tk-xft) — celui
 # de python-build-standalone ne connaît que les polices bitmap X11 (« fixed »).
-UI_FONT   = "Segoe UI" if IS_WINDOWS else "sans-serif"
-MONO_FONT = "Consolas" if IS_WINDOWS else "monospace"
+if IS_WINDOWS:
+    UI_FONT, MONO_FONT = "Segoe UI", "Consolas"
+elif sys.platform == "darwin":          # Tk Aqua : polices du système
+    UI_FONT, MONO_FONT = "Helvetica Neue", "Menlo"
+else:
+    UI_FONT, MONO_FONT = "sans-serif", "monospace"
 
 FONT_MONO  = (MONO_FONT, 9)
 FONT_UI    = (UI_FONT, 10)

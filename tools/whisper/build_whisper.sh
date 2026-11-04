@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 #  build_whisper.sh — compile whisper-cli (whisper.cpp) pour Linux x86-64/arm64
+#                     et macOS (Apple Silicon / Intel)
 #
 #  whisper.cpp ne publie pas de binaire Linux : ce script le compile et
 #  dépose dans build/whisper/ le programme whisper-cli et ses bibliothèques
@@ -20,15 +21,48 @@
 #  -march »). Le script vérifie le compilateur et prend sinon un clang récent
 #  (clang-15 et plus, paquet clang-15 sur Ubuntu 22.04).
 #
+#  macOS : un seul exécutable whisper-cli, lié STATIQUEMENT (aucune .dylib à
+#  transporter), avec Metal (GPU, shaders intégrés au binaire) et Accelerate.
+#  Intel : AVX2/FMA/F16C, présents sur tous les Mac Intel encore pris en
+#  charge par macOS. Cible minimale : macOS 11. strip retire la signature ad
+#  hoc posée par l'éditeur de liens ; elle est refaite (codesign -s -), sans
+#  quoi macOS sur Apple Silicon tue le programme au lancement.
+#
 #  Usage : tools/whisper/build_whisper.sh [dossier_de_sortie]
 #          (défaut : build/whisper à la racine de l'application)
 #  Prérequis : git cmake g++ make ; arm64 : gcc ≥ 14 ou clang ≥ 15
+#              macOS : outils en ligne de commande Xcode + cmake
 # ==============================================================================
 set -Eeuo pipefail
 WHISPER_TAG="v1.8.6"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT="${1:-$ROOT/build/whisper}"
 W="$(mktemp -d)"; trap 'rm -rf "$W"' EXIT
+OS="$(uname -s)"
+NPROC="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+
+git -c advice.detachedHead=false clone -q --depth 1 --branch "$WHISPER_TAG" https://github.com/ggml-org/whisper.cpp.git "$W/src"
+
+if [ "$OS" = Darwin ]; then
+    X86=()
+    [ "$(uname -m)" = x86_64 ] && X86=(-DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON)
+    cmake -S "$W/src" -B "$W/b" -DCMAKE_BUILD_TYPE=Release \
+        -DBUILD_SHARED_LIBS=OFF -DGGML_NATIVE=OFF \
+        -DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON \
+        ${X86[@]+"${X86[@]}"} \
+        -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
+        -DWHISPER_BUILD_TESTS=OFF -DWHISPER_SDL2=OFF -DWHISPER_CURL=OFF >/dev/null
+    cmake --build "$W/b" --target whisper-cli -j"$NPROC" >/dev/null
+    mkdir -p "$OUT"
+    rm -f "$OUT"/whisper-cli
+    cp "$W/b/bin/whisper-cli" "$OUT/"
+    strip -x "$OUT/whisper-cli"
+    codesign --force --sign - "$OUT/whisper-cli"
+    chmod +x "$OUT/whisper-cli"
+    otool -L "$OUT/whisper-cli" | sed 's/^/  /'
+    echo "whisper-cli $WHISPER_TAG (macOS $(uname -m)) → $OUT"
+    exit 0
+fi
 
 # arm64 : compilateur capable de la variante armv9.2 (SME) de ggml
 if [ "$(uname -m)" = aarch64 ] || [ "$(uname -m)" = arm64 ]; then
@@ -46,14 +80,13 @@ if [ "$(uname -m)" = aarch64 ] || [ "$(uname -m)" = arm64 ]; then
     echo "Compilateur : ${CC:-cc}"
 fi
 
-git -c advice.detachedHead=false clone -q --depth 1 --branch "$WHISPER_TAG" https://github.com/ggml-org/whisper.cpp.git "$W/src"
 cmake -S "$W/src" -B "$W/b" -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_SHARED_LIBS=ON -DGGML_NATIVE=OFF \
     -DGGML_BACKEND_DL=ON -DGGML_CPU_ALL_VARIANTS=ON -DGGML_OPENMP=OFF \
     -DWHISPER_BUILD_TESTS=OFF -DWHISPER_SDL2=OFF -DWHISPER_CURL=OFF \
     -DCMAKE_BUILD_RPATH='$ORIGIN' -DCMAKE_INSTALL_RPATH='$ORIGIN' \
     -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON >/dev/null
-cmake --build "$W/b" --target whisper-cli -j"$(nproc)" >/dev/null
+cmake --build "$W/b" --target whisper-cli -j"$NPROC" >/dev/null
 
 mkdir -p "$OUT"
 rm -f "$OUT"/whisper-cli "$OUT"/lib*.so*
