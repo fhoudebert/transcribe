@@ -30,6 +30,11 @@ echo ""
 echo "🚀 Étape 2 : téléchargement des composants (downloads.csv)..."
 if [ -x "$SCRIPT_DIR/download-assistant" ]; then
     "$SCRIPT_DIR/download-assistant"
+elif [ "$(uname -s)" = Darwin ]; then
+    # macOS : téléchargeur Python (bash 3.2 du système, outils BSD), avec le
+    # Python portable installé à l'étape 1
+    "$SCRIPT_DIR/build/python/venv/bin/python3.12" -I \
+        "$SCRIPT_DIR/download_from_csv.py" "$SCRIPT_DIR/downloads.csv"
 else
     echo "   (download-assistant absent → repli download_from_csv.sh)"
     bash "$SCRIPT_DIR/download_from_csv.sh" "$SCRIPT_DIR/downloads.csv"

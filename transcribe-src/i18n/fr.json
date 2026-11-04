@@ -205,5 +205,18 @@
     "url_sel_audio_default": "piste par défaut",
     "url_sel_none": "Seront téléchargés : piste audio et sous-titres par défaut (aucune option cochée)",
     "url_sel_subs_empty": "⚠  Sous-titres cochés mais aucune langue sélectionnée — un clic sélectionne ou désélectionne une langue",
-    "url_confirm_no_subs": "« Télécharger les sous-titres » est cochée mais aucune langue n'est sélectionnée.\n\nTélécharger quand même, sans sous-titres ?"
+    "url_confirm_no_subs": "« Télécharger les sous-titres » est cochée mais aucune langue n'est sélectionnée.\n\nTélécharger quand même, sans sous-titres ?",
+    "tool_title": "{name} : installation incorrecte",
+    "tool_missing": "{name} est introuvable :\n{path}",
+    "tool_not_exec": "{name} n'a pas le droit d'exécution :\n{path}\n\nRendez-le exécutable :\n  chmod +x \"{path}\"",
+    "tool_noexec_mount": "{name} ne peut pas s'exécuter :\n{path}\n\nLa clé ({mount}) est montée avec l'option « noexec ». Remontez-la :\n  sudo mount -o remount,exec \"{mount}\"",
+    "tool_bad_format": "{name} n'est pas un programme pour ce système ({system}) :\n{path}\n\nVersion d'un autre système ou d'une autre architecture (clé préparée sur un autre ordinateur), ou fichier abîmé (téléchargement incomplet).",
+    "tool_dll": "{name} ne démarre pas : une DLL est absente ou d'une autre version :\n{path}\n\nLe dossier semble incomplet.",
+    "tool_fails": "{name} ne démarre pas correctement (code {code}) :\n{path}\n\n{detail}",
+    "tool_timeout": "{name} ne répond pas (aucune réponse en {s} s) :\n{path}",
+    "tool_signal": "arrêté par le signal {sig}",
+    "tool_fix": "\n\nPour l'installer ou le réinstaller : supprimez le dossier\n  {folder}\npuis lancez {script} (composants de downloads.csv).",
+    "tool_fix_ytdlp": "Ou téléchargez-le sur https://github.com/yt-dlp/yt-dlp/releases",
+    "tool_quarantine": "{name} est bloqué par macOS :\n{path}\n\nLe fichier est marqué « téléchargé d'Internet » (archive ouverte depuis le navigateur). Débloquez le dossier de l'application dans le Terminal :\n  xattr -dr com.apple.quarantine \"{root}\"",
+    "tool_mac_killed": "{name} a été arrêté par macOS au lancement :\n{path}\n\nSignature de code absente ou invalide (fichier modifié ou incomplet)."
 }

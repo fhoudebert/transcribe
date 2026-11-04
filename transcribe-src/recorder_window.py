@@ -26,6 +26,7 @@ from app_styles import (
 )
 
 from dialog_windows import ChoiceDialog
+import tool_check
 
 class RecorderWindow(tk.Toplevel):
     """
@@ -173,9 +174,9 @@ class RecorderWindow(tk.Toplevel):
     def _enum_dshow(self):
         """Énumère les périphériques DirectShow en arrière-plan."""
         ffmpeg = self._parent._ffmpeg()
-        if not os.path.isfile(ffmpeg):
-            self.after(0, self._parent._log_line,
-                       f"⚠  dshow : ffmpeg introuvable ({ffmpeg})")
+        err = tool_check.check("ffmpeg", ffmpeg)
+        if err:
+            self.after(0, self._parent._log_line, f"⚠  dshow : {err}")
             return
         try:
             out = subprocess.run(
@@ -257,13 +258,9 @@ class RecorderWindow(tk.Toplevel):
             self._start()
 
     def _start(self):
-        ffmpeg = self._parent._ffmpeg()
-        if not os.path.isfile(ffmpeg):
-            ext = ".exe" if IS_WINDOWS else ""
-            messagebox.showerror(
-                t("err_file_not_found"),
-                t("rec_ffmpeg_missing", ext=ext), parent=self)
+        if not self._parent._tool_ok("ffmpeg", parent=self):
             return
+        ffmpeg = self._parent._ffmpeg()
 
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self._tmp_file = os.path.join(
@@ -290,6 +287,11 @@ class RecorderWindow(tk.Toplevel):
                 return
             cmd = base_in + ["-f", "dshow",
                              "-i", f"audio={dev}"] + base_out
+        elif sys.platform == "darwin":
+            # AVFoundation : « :0 » = premier micro, sans vidéo. macOS demande
+            # l'autorisation d'accès au micro pour le Terminal / l'application.
+            cmd = base_in + ["-f", "avfoundation",
+                             "-i", ":0"] + base_out
         else:
             cmd = base_in + ["-f", "pulse",
                              "-i", "default"] + base_out

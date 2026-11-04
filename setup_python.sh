@@ -14,6 +14,8 @@
 #  ailleurs). La clé fonctionne sur n'importe quel Linux de son architecture
 #  (une clé par architecture : x86-64 ou arm64/aarch64), sans python3
 #  installé, et le dossier peut être déplacé ou copié tel quel.
+#  macOS (Apple Silicon ou Intel) est pris en charge de la même façon, avec le
+#  Python python-build-standalone correspondant (Tk Aqua natif).
 #  Un ancien venv créé avec le Python système est remplacé ; une installation
 #  faite dans build/python/linux (version précédente de ce script) est
 #  déplacée ici. Windows a sa propre copie (setup_python.bat →
@@ -53,8 +55,15 @@ case "$(uname -s)-$(uname -m)" in
     Linux-aarch64|Linux-arm64)
         TRIPLE=aarch64-unknown-linux-gnu
         SHA256="9467a99bacc7d90b64b02de7fa9ecfc99b72905e64e74f7ff6b460ad95cfed5a" ;;
+    Darwin-arm64)
+        TRIPLE=aarch64-apple-darwin
+        SHA256="9866e11cf2ae9caa1e671383786f248859a52dd8bfb702fb4c0dc2c65f1d36de" ;;
+    Darwin-x86_64)
+        TRIPLE=x86_64-apple-darwin
+        SHA256="d09998f85752b646873a8a6bc7eea442a0d251b1c8d2413aa8ea06ef131c3335" ;;
     *)
-        echo "❌ système non pris en charge : $(uname -s) $(uname -m) (Linux x86-64 ou arm64)" >&2
+        echo "❌ système non pris en charge : $(uname -s) $(uname -m)" \
+             "(Linux x86-64 / arm64, macOS Apple Silicon / Intel)" >&2
         exit 1 ;;
 esac
 ASSET="cpython-${PY_VERSION}+${PBS_TAG}-${TRIPLE}-install_only_stripped.tar.gz"
@@ -108,7 +117,10 @@ if [ ! -x "$PY" ]; then
     trap 'rm -rf "$TMP"' EXIT
     echo "[1/4] Téléchargement de Python $PY_VERSION ($ASSET)"
     curl -fL --retry 3 -o "$TMP/py.tar.gz" "$URL"
-    echo "$SHA256  $TMP/py.tar.gz" | sha256sum -c --quiet - \
+    # sha256sum (Linux) ou shasum (macOS)
+    if command -v sha256sum >/dev/null; then sha() { sha256sum "$1"; }
+    else sha() { shasum -a 256 "$1"; }; fi
+    [ "$(sha "$TMP/py.tar.gz" | cut -d' ' -f1)" = "$SHA256" ] \
         || { echo "❌ somme de contrôle incorrecte, téléchargement refusé" >&2; exit 1; }
     tar -xzf "$TMP/py.tar.gz" -C "$TMP"
     find "$TMP/python" -type l -delete
@@ -150,12 +162,18 @@ done
 
 if ! "$PY" -c "pass" 2>/dev/null; then
     echo "❌ $PY ne peut pas s'exécuter." >&2
-    echo "   La clé est probablement montée avec l'option 'noexec'. Remontez-la :" >&2
-    echo "     sudo mount -o remount,exec \"\$(findmnt -no TARGET -T '$ROOT')\"" >&2
+    if [ "$(uname -s)" = Darwin ]; then
+        echo "   Fichiers bloqués par macOS (archive téléchargée par le navigateur) ?" >&2
+        echo "     xattr -dr com.apple.quarantine '$ROOT'" >&2
+    else
+        echo "   La clé est probablement montée avec l'option 'noexec'. Remontez-la :" >&2
+        echo "     sudo mount -o remount,exec \"\$(findmnt -no TARGET -T '$ROOT')\"" >&2
+    fi
     exit 1
 fi
 
 # Tk avec Xft (polices du système) : voir tools/tk-xft/install_tk_xft.sh
+# (Linux seulement ; ne fait rien ailleurs)
 bash "$ROOT/tools/tk-xft/install_tk_xft.sh" "$DEST" | sed 's/^/[1\/4] /' || true
 
 # requirements.txt de la racine (celui du dépôt, à jour) EN PRIORITÉ ; la

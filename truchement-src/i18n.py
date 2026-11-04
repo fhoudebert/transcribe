@@ -163,6 +163,12 @@ I18N: dict[str, dict[str, str]] = {
         "def_hint": "Type a word, then click Containing, Starting with or Definition.",
         "def_close": "✕  Close",
         "def_refresh": "↺",
+        "def_get_dics": "+",
+        "def_get_dics_tip": (
+            "Install more monolingual dictionaries (opens the download page in the browser) — "
+            "{url}\n"
+            "Put the .db file in build/dic/, then click ↺."
+        ),
         "about_description": "Truchement allows you to translate texts and files and to look up definitions in monolingual dictionaries.",
     },
     "fr": {
@@ -307,6 +313,12 @@ I18N: dict[str, dict[str, str]] = {
         "def_hint": "Saisissez un mot, puis cliquez sur Contenant, Commençant ou Définition.",
         "def_close": "✕  Fermer",
         "def_refresh": "↺",
+        "def_get_dics": "+",
+        "def_get_dics_tip": (
+            "Installer d'autres dictionnaires monolingues (ouvre la page de téléchargement dans le navigateur) — "
+            "{url}\n"
+            "Placez le fichier .db dans build/dic/, puis cliquez sur ↺."
+        ),
         "about_description": "Truchement permet de traduire des textes et des fichiers et de consulter des définitions dans des dictionnaires monolingues.",
     },
     "de": {
@@ -447,6 +459,12 @@ I18N: dict[str, dict[str, str]] = {
         "def_hint": "Wort eingeben, dann Enthält, Beginnt mit oder Definition klicken.",
         "def_close": "✕  Schließen",
         "def_refresh": "↺",
+        "def_get_dics": "+",
+        "def_get_dics_tip": (
+            "Weitere einsprachige Wörterbücher installieren (öffnet die Download-Seite im Browser) — "
+            "{url}\n"
+            "Die .db-Datei in build/dic/ ablegen, dann auf ↺ klicken."
+        ),
         "about_description": "Truchement ermöglicht es, Texte und Dateien zu übersetzen und Definitionen in einsprachigen Wörterbüchern nachzuschlagen.",
     },
     "es": {
@@ -587,6 +605,12 @@ I18N: dict[str, dict[str, str]] = {
         "def_hint": "Escriba una palabra y haga clic en Contiene, Empieza con o Definición.",
         "def_close": "✕  Cerrar",
         "def_refresh": "↺",
+        "def_get_dics": "+",
+        "def_get_dics_tip": (
+            "Instalar otros diccionarios monolingües (abre la página de descarga en el navegador) — "
+            "{url}\n"
+            "Coloque el archivo .db en build/dic/ y pulse ↺."
+        ),
         "about_description": "Truchement permite traducir textos y archivos y consultar definiciones en diccionarios monolingües.",
     },
 }

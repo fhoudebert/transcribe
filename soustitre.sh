@@ -76,7 +76,7 @@ if [ "$TRANSLATE" = "yes" ]; then
     "$WHISPER_BIN" \
       -m "$MODEL" \
       -f "$WAV_FILE" \
-      "${LANG_ARGS[@]}" \
+      ${LANG_ARGS[@]+"${LANG_ARGS[@]}"} \
       -tr \
       -osrt \
       -of "$DIR/output"
@@ -84,7 +84,7 @@ else
     "$WHISPER_BIN" \
       -m "$MODEL" \
       -f "$WAV_FILE" \
-      "${LANG_ARGS[@]}" \
+      ${LANG_ARGS[@]+"${LANG_ARGS[@]}"} \
       -osrt \
       -of "$DIR/output"
 fi

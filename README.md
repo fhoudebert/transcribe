@@ -85,7 +85,7 @@ Typical pipeline:
 2. **Install the portable Python** (a complete, relocatable CPython 3.12.15 from [python-build-standalone](https://github.com/astral-sh/python-build-standalone), stripped build, placed in `build/python/venv` or `build\python\venv-windows` — the usual places, but no longer a venv tied to the system Python; then Argos Translate and the language packages, all inside the app folder — no system Python needed, none touched):
 
    ```bash
-   ./setup_python.sh          # Linux   (--no-lang: skip the language packages, --force: reinstall Python)
+   ./setup_python.sh          # Linux, macOS (--no-lang: skip the language packages, --force: reinstall Python)
    setup_python.bat           # Windows (same options)
    ```
 
@@ -125,10 +125,27 @@ One stick per architecture: the portable Python, ffmpeg, yt-dlp, whisper-cli and
 
 1. On a machine of the target architecture, run `./setupPython_and_download.sh` — it picks the right Python (x86-64 or arm64), ffmpeg and yt-dlp by itself (`downloads.csv`, column `os`: `linux-x64` / `linux-arm64`).
 2. Get the executables, either:
-   - **from GitHub Actions** — workflow *Linux (x86-64, arm64)* (`.github/workflows/linux.yml`): run it by hand from the *Actions* tab, or push a tag `linux-*` to also publish the archives in that release. Unpack `transcribe-linux-<arch>.tar.xz` at the root of the stick (it holds `transcribe`, `truchement`, their scripts, `assets/`, `i18n/` and `build/whisper/`);
+   - **from GitHub Actions** — workflow *Release (Linux, Windows, macOS)* (`.github/workflows/release.yml`): run it by hand from the *Actions* tab, or push a tag `v*` (or `linux-*`) to also publish the archives in that release. Unpack `transcribe-linux-<arch>.tar.xz` at the root of the stick (it holds `transcribe`, `truchement`, their scripts, `assets/`, `i18n/` and `build/whisper/`);
    - **or locally**, on that machine: `tools/whisper/build_whisper.sh` (whisper-cli), then `./compiler.sh`.
 
 The workflow builds inside an Ubuntu 22.04 container, so the executables need glibc 2.35 or newer on the target (Ubuntu 22.04+, Debian 12, Raspberry Pi OS Bookworm, Linux Mint 21+). Allow at least 4 GB of RAM; on a Raspberry Pi 5, Whisper `base` and `medium` are usable, `large-v3-turbo` is slow.
+
+### macOS (Apple Silicon or Intel)
+
+Same layout as Linux, one stick (or folder) per processor: `transcribe-macos-arm64.tar.xz` for Apple Silicon (M1…M4), `transcribe-macos-x64.tar.xz` for Intel Macs — both built by the same workflow.
+
+1. Unpack the archive, then — if it was downloaded with a web browser — lift the quarantine macOS puts on downloaded programs (they are signed *ad hoc*, not notarized):
+
+   ```bash
+   xattr -dr com.apple.quarantine /path/to/the/folder
+   ```
+
+2. Run `./setupPython_and_download.sh` in Terminal: portable Python (python-build-standalone for macOS, native Tk), language packages, ffmpeg / ffprobe ([Martin Riedl's builds](https://ffmpeg.martin-riedl.de)) and yt-dlp (`downloads.csv`, column `os`: `mac-arm64` / `mac-x64`).
+3. Launch `./truchement` or `./transcribe` from Terminal (no `.app` bundle). `whisper-cli` uses the GPU through Metal. The recorder needs microphone access for Terminal (System Settings → Privacy & Security → Microphone).
+
+Intel Macs: torch and onnxruntime no longer publish wheels for them, so `requirements.txt` pins the last ones available (torch 2.2.2, onnxruntime 1.23.2); Martin Riedl stops publishing new Intel ffmpeg builds in January 2027.
+
+Locally: `tools/whisper/build_whisper.sh` (needs the Xcode command-line tools and cmake), then `./compiler.sh`.
 
 ---
 

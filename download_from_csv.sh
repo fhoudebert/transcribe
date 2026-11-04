@@ -44,7 +44,7 @@ fi
 # de download-assistant).
 BASE_DIR="$(cd "$(dirname "$CSV")" && pwd)"
 
-# ── OS cible (surcharge possible : CSV_OS=win|linux|mac|all) ──────────────────
+# ── OS cible (surcharge possible : CSV_OS=win|linux|linux-x64|mac|mac-arm64|all)
 CUR_OS="${CSV_OS:-}"
 if [ -z "$CUR_OS" ]; then
     case "$(uname -s)" in
@@ -54,7 +54,11 @@ if [ -z "$CUR_OS" ]; then
                 aarch64|arm64)  CUR_OS="linux-arm64" ;;
                 *)              CUR_OS="linux-$(uname -m)" ;;
             esac ;;
-        Darwin*)                CUR_OS="mac"   ;;
+        Darwin*)
+            case "$(uname -m)" in
+                x86_64)         CUR_OS="mac-x64" ;;
+                *)              CUR_OS="mac-arm64" ;;
+            esac ;;
         MINGW*|MSYS*|CYGWIN*)   CUR_OS="win"   ;;
         *)                      CUR_OS="linux" ;;
     esac
@@ -69,6 +73,10 @@ norm_tag() {     # norm_tag <étiquette> → forme canonique
         macos|darwin)                 t="mac" ;;
         linux-x86_64|linux-amd64)     t="linux-x64" ;;
         linux-aarch64)                t="linux-arm64" ;;
+        mac-x86_64|mac-amd64|macos-x64|macos-x86_64|macos-amd64)
+                                      t="mac-x64" ;;
+        mac-aarch64|macos-arm64|macos-aarch64)
+                                      t="mac-arm64" ;;
     esac
     printf '%s' "$t"
 }
@@ -78,9 +86,14 @@ os_matches() {   # os_matches <tag>
     t="$(norm_tag "$1")"; cur="$(norm_tag "$CUR_OS")"
     case "$t" in ""|all|any) return 0 ;; esac
     [ "$cur" = "all" ] && return 0
-    # « linux » : toutes les architectures Linux (ligne ou surcharge CSV_OS)
+    # « linux » / « mac » : toutes les architectures de ce système (ligne ou
+    # surcharge CSV_OS)
     if [ "$t" = linux ] || [ "$cur" = linux ]; then
         case "$t" in linux*) case "$cur" in linux*) return 0 ;; esac ;; esac
+        return 1
+    fi
+    if [ "$t" = mac ] || [ "$cur" = mac ]; then
+        case "$t" in mac*) case "$cur" in mac*) return 0 ;; esac ;; esac
         return 1
     fi
     [ "$t" = "$cur" ]

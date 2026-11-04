@@ -961,6 +961,7 @@ class TranslatorApp(FileTabMixin, DefTabMixin, BookTabMixin, tk.Tk):
         self._def_prefix_btn.configure(text=t.get("def_btn_prefix", "Starting with"))
         self._def_exact_btn.configure(text=t.get("def_btn_exact", "Definition"))
         self._def_refresh_btn.configure(text=t.get("def_refresh", "↺"))
+        self._def_get_btn.configure(text=t.get("def_get_dics", "+"))
         self._def_show_hint()
 
         # Onglet Livre

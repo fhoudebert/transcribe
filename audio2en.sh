@@ -76,7 +76,7 @@ echo "=== Transcription Whisper (texte brut, sans traduction) ==="
 "$WHISPER_BIN" \
     -m "$MODEL" \
     -f "$WAV_FILE" \
-    "${LANG_ARGS[@]}" \
+    ${LANG_ARGS[@]+"${LANG_ARGS[@]}"} \
     -otxt \
     -of "$BASE_FULL"
 # Pas de -tr → langue source conservée
