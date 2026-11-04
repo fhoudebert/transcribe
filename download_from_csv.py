@@ -10,10 +10,13 @@ Format d'une ligne : destination,url[,format[,os[,move]]]
   destination  chemin relatif à la racine de l'application (dossier du CSV)
   format       vide|auto → détection par extension ; zip ; tar.gz|tgz ;
                tar.bz2|tbz2 ; tar.xz|txz ; gz ; 7z|7zip ; no
-  os           linux | win | mac | all (défaut) → la ligne n'est traitée
-               que si l'OS courant correspond. Surcharge possible via la
-               variable d'environnement CSV_OS (ex. CSV_OS=win pour préparer
-               une clé Windows depuis Linux ; CSV_OS=all pour tout traiter).
+  os           linux | linux-x64 | linux-arm64 | win | mac | all (défaut)
+               → la ligne n'est traitée que si le système courant correspond ;
+               « linux » vaut pour toutes les architectures Linux, linux-x64 /
+               linux-arm64 pour une seule (binaires). Surcharge possible via
+               la variable d'environnement CSV_OS (ex. CSV_OS=win pour
+               préparer une clé Windows depuis Linux, CSV_OS=linux-arm64 pour
+               une clé arm64 ; CSV_OS=all pour tout traiter).
   move         opérations post-extraction, séparées par « ; » :
                motif_glob        → déplace les fichiers correspondants à la
                                    racine de la destination (aplatit les
@@ -37,6 +40,7 @@ import os
 import shutil
 import subprocess
 import sys
+import platform
 import tarfile
 import urllib.request
 import zipfile
@@ -53,17 +57,33 @@ def current_os() -> str:
         return "win"
     if sys.platform == "darwin":
         return "mac"
-    return "linux"
+    return "linux-" + _ARCH.get(platform.machine().lower(), platform.machine().lower())
+
+
+# Noms d'architecture → étiquettes du CSV
+_ARCH = {"x86_64": "x64", "amd64": "x64", "aarch64": "arm64", "arm64": "arm64"}
+
+
+def _norm_tag(t: str) -> str:
+    t = (t or "").strip().lower()
+    if t == "windows":
+        return "win"
+    if t in ("macos", "darwin"):
+        return "mac"
+    if t.startswith("linux-"):
+        arch = t[len("linux-"):]
+        return "linux-" + _ARCH.get(arch, arch)
+    return t
 
 
 def os_matches(tag: str, cur: str) -> bool:
-    t = (tag or "").strip().lower()
+    t, cur = _norm_tag(tag), _norm_tag(cur)
     if not t or t in ("all", "any") or cur == "all":
         return True
-    if t == "windows":
-        t = "win"
-    if t in ("macos", "darwin"):
-        t = "mac"
+    # « linux » : toutes les architectures Linux, dans un sens comme dans
+    # l'autre (ligne « linux » ou surcharge CSV_OS=linux).
+    if t == "linux" or cur == "linux":
+        return t.startswith("linux") and cur.startswith("linux")
     return t == cur
 
 

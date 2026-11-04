@@ -67,12 +67,12 @@ pyinstaller==6.20.0
 pyinstaller-hooks-contrib==2026.5
 PyMuPDF==1.27.2.3
 # PyQt5 : non importé par le projet (résidu du gel — vraisemblablement un
-# essai d'argos-translate-gui). Marqué linux-only car PyQt5-Qt5 5.15.19 n'a
-# aucune roue Windows (seule 5.15.2 y existe). Candidats à suppression pure
-# et simple lors d'un prochain nettoyage du gel.
-PyQt5==5.15.11 ; sys_platform == "linux"
-PyQt5-Qt5==5.15.19 ; sys_platform == "linux"
-PyQt5_sip==12.18.0 ; sys_platform == "linux"
+# essai d'argos-translate-gui). Limité à Linux x86-64 : PyQt5-Qt5 5.15.19 n'a
+# aucune roue Windows (seule 5.15.2 y existe) ni arm64. Candidats à
+# suppression pure et simple lors d'un prochain nettoyage du gel.
+PyQt5==5.15.11 ; sys_platform == "linux" and platform_machine == "x86_64"
+PyQt5-Qt5==5.15.19 ; sys_platform == "linux" and platform_machine == "x86_64"
+PyQt5_sip==12.18.0 ; sys_platform == "linux" and platform_machine == "x86_64"
 pysrt==1.1.2
 PyYAML==6.0.3
 regex==2026.5.9

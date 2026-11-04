@@ -119,6 +119,17 @@ Typical pipeline:
 
 > **Windows:** support is in active development. The apps are designed to run from the same folder layout on both systems; a Windows build will be published in the releases.
 
+### Linux on x86-64 or arm64 (64-bit ARM: Raspberry Pi 5, ARM mini-PCs…)
+
+One stick per architecture: the portable Python, ffmpeg, yt-dlp, whisper-cli and the two executables are specific to the processor, while models, translation packages and dictionaries are not.
+
+1. On a machine of the target architecture, run `./setupPython_and_download.sh` — it picks the right Python (x86-64 or arm64), ffmpeg and yt-dlp by itself (`downloads.csv`, column `os`: `linux-x64` / `linux-arm64`).
+2. Get the executables, either:
+   - **from GitHub Actions** — workflow *Linux (x86-64, arm64)* (`.github/workflows/linux.yml`): run it by hand from the *Actions* tab, or push a tag `linux-*` to also publish the archives in that release. Unpack `transcribe-linux-<arch>.tar.xz` at the root of the stick (it holds `transcribe`, `truchement`, their scripts, `assets/`, `i18n/` and `build/whisper/`);
+   - **or locally**, on that machine: `tools/whisper/build_whisper.sh` (whisper-cli), then `./compiler.sh`.
+
+The workflow builds inside an Ubuntu 22.04 container, so the executables need glibc 2.35 or newer on the target (Ubuntu 22.04+, Debian 12, Raspberry Pi OS Bookworm, Linux Mint 21+). Allow at least 4 GB of RAM; on a Raspberry Pi 5, Whisper `base` and `medium` are usable, `large-v3-turbo` is slow.
+
 ---
 
 ## Running from a USB stick

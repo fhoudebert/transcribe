@@ -261,7 +261,9 @@ def warn_tk_without_xft() -> None:
     (tools/tk-xft) — l'interface n'aurait alors que les polices bitmap X11."""
     if not IS_LINUX:
         return
-    ref = os.path.join(APP_ROOT, "tools", "tk-xft", "libtcl9tk9.0.so")
+    import platform
+    arch = {"arm64": "aarch64"}.get(platform.machine(), platform.machine())
+    ref = os.path.join(APP_ROOT, "tools", "tk-xft", arch, "libtcl9tk9.0.so")
     lib = os.path.join(sys.prefix, "lib", "libtcl9tk9.0.so")
     try:
         with open(ref, "rb") as a, open(lib, "rb") as b:
