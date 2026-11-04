@@ -1,0 +1,119 @@
+# ==============================================================================
+#  Linux x86-64 et arm64 — compilation de transcribe et truchement
+#
+#  Une clé par architecture : ce workflow produit, pour chacune, l'archive à
+#  décompresser à la racine d'une clé préparée par setupPython_and_download.sh
+#  sur une machine de la même architecture :
+#    transcribe-linux-<arch>.tar.xz  transcribe, truchement, scripts déployés,
+#                                    assets/, i18n/, build/whisper/
+#    whisper-cli-linux-<arch>.tar.xz whisper-cli + bibliothèques (downloads.csv)
+#
+#  Compilé dans un conteneur ubuntu:22.04 : PyInstaller embarque les
+#  bibliothèques système de la machine de compilation (X11, Xft, fontconfig…),
+#  dont la glibc fixe le minimum requis sur les machines cibles — 2.35 ici
+#  (Ubuntu 22.04+, Debian 12, Raspberry Pi OS Bookworm, Linux Mint 21+), au
+#  lieu de 2.38 avec une image ubuntu-24.04.
+#
+#  Déclenchement : à la main (onglet Actions → Run workflow), ou en poussant
+#  une étiquette linux-* (git tag linux-1 && git push origin linux-1) : les
+#  archives sont alors aussi publiées dans la release de cette étiquette.
+# ==============================================================================
+name: Linux (x86-64, arm64)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["linux-*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Linux ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-24.04,     arch: x64 }
+          - { runner: ubuntu-24.04-arm, arch: arm64 }
+    runs-on: ${{ matrix.runner }}
+    container: ubuntu:22.04
+    timeout-minutes: 120
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - name: Paquets système
+        run: |
+          apt-get update -q
+          apt-get install -y -q --no-install-recommends \
+            ca-certificates curl git xz-utils file build-essential cmake \
+            libx11-6 libxft2 libfontconfig1 fonts-dejavu-core xvfb xauth
+          # arm64 : gcc 11 ne connaît pas armv9.2-a+sme (variante ggml la
+          # plus récente) ; tools/whisper/build_whisper.sh prendra clang-15
+          if [ "$(uname -m)" = aarch64 ]; then
+            apt-get install -y -q --no-install-recommends clang-15
+          fi
+
+      - uses: actions/checkout@v7
+
+      - name: Python portable (sans paquets de langues Argos)
+        run: bash setup_python.sh --no-lang
+
+      - name: whisper-cli
+        run: bash tools/whisper/build_whisper.sh
+
+      - name: Compilation de transcribe et truchement
+        run: bash compiler.sh
+
+      - name: Essai de lancement (Xvfb)
+        run: |
+          # Toujours en marche au bout de 20 s (code 124) = démarrage réussi
+          for app in transcribe truchement; do
+            set +e
+            xvfb-run -a timeout 20 ./"$app" > "$app.log" 2>&1
+            rc=$?
+            set -e
+            echo "$app : code $rc"
+            if [ "$rc" -ne 124 ]; then tail -20 "$app.log"; exit 1; fi
+          done
+          build/whisper/whisper-cli --help > /dev/null
+
+      - name: Archives
+        run: |
+          mkdir -p dist
+          tar -cJf "dist/transcribe-linux-${{ matrix.arch }}.tar.xz" \
+            transcribe truchement traduire-srt.py nettoyer-srt.py \
+            traduire-livre.py assets i18n build/whisper
+          tar -C build/whisper -cJf "dist/whisper-cli-linux-${{ matrix.arch }}.tar.xz" .
+          file transcribe truchement build/whisper/whisper-cli
+          ls -l dist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux-${{ matrix.arch }}
+          path: dist/*.tar.xz
+          if-no-files-found: error
+
+  release:
+    name: Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/linux-')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publication dans la release ${{ github.ref_name }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release view "$TAG" > /dev/null 2>&1 \
+            || gh release create "$TAG" --title "$TAG" \
+                 --notes "transcribe et truchement pour Linux x86-64 et arm64"
+          gh release upload "$TAG" dist/*.tar.xz --clobber
