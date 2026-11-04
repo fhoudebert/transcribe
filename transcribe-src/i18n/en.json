@@ -205,5 +205,16 @@
     "url_sel_audio_default": "default track",
     "url_sel_none": "Will be downloaded: default audio track and subtitles (no option ticked)",
     "url_sel_subs_empty": "⚠  Subtitles ticked but no language selected — a click selects or deselects a language",
-    "url_confirm_no_subs": "“Download subtitles” is ticked but no language is selected.\n\nDownload anyway, without subtitles?"
+    "url_confirm_no_subs": "“Download subtitles” is ticked but no language is selected.\n\nDownload anyway, without subtitles?",
+    "tool_title": "{name}: incorrect installation",
+    "tool_missing": "{name} was not found:\n{path}",
+    "tool_not_exec": "{name} is not executable:\n{path}\n\nMake it executable:\n  chmod +x \"{path}\"",
+    "tool_noexec_mount": "{name} cannot run:\n{path}\n\nThe drive ({mount}) is mounted with the \"noexec\" option. Remount it:\n  sudo mount -o remount,exec \"{mount}\"",
+    "tool_bad_format": "{name} is not a program for this system ({system}):\n{path}\n\nBuild for another system or architecture (drive prepared on another computer), or damaged file (incomplete download).",
+    "tool_dll": "{name} does not start: a DLL is missing or of another version:\n{path}\n\nThe folder looks incomplete.",
+    "tool_fails": "{name} does not start correctly (code {code}):\n{path}\n\n{detail}",
+    "tool_timeout": "{name} does not respond (no answer within {s} s):\n{path}",
+    "tool_signal": "killed by signal {sig}",
+    "tool_fix": "\n\nTo install or reinstall it: delete the folder\n  {folder}\nthen run {script} (components of downloads.csv).",
+    "tool_fix_ytdlp": "Or download it from https://github.com/yt-dlp/yt-dlp/releases"
 }

@@ -10,18 +10,70 @@ DefTabMixin est mélangé dans TranslatorApp.
 
 from __future__ import annotations
 
+import os
 import re
 import sqlite3
 import threading
 import tkinter as tk
+import webbrowser
 from tkinter import ttk, messagebox
 
 from config import C, F, LANG_NAMES
 from dictionary import (
-    available_dics, fetch_entry, lookup_lemma,
+    DIC_DIR, available_dics, fetch_entry, lookup_lemma,
     search_exact, search_fts, search_like_prefix,
 )
 from html_renderer import is_html, render_html, setup_html_tags
+
+
+# Page des dictionnaires monolingues prêts à l'emploi (<code>-<code>.db, à
+# placer dans build/dic/) — les mêmes que ceux de downloads.csv.
+DIC_RELEASES_URL = "https://github.com/fhoudebert/transcribe/releases/tag/dic"
+
+
+class _Tooltip:
+    """Infobulle minimale : texte (callable, relu à chaque survol → suit la
+    langue de l'interface) affiché après un court délai."""
+
+    def __init__(self, widget: tk.Widget, text_fn, delay: int = 500) -> None:
+        self._w, self._text_fn, self._delay = widget, text_fn, delay
+        self._job = None
+        self._tip: tk.Toplevel | None = None
+        widget.bind("<Enter>", self._schedule, add="+")
+        widget.bind("<Leave>", self._hide, add="+")
+        widget.bind("<ButtonPress>", self._hide, add="+")
+
+    def _schedule(self, _e=None) -> None:
+        self._cancel()
+        self._job = self._w.after(self._delay, self._show)
+
+    def _cancel(self) -> None:
+        if self._job:
+            try:
+                self._w.after_cancel(self._job)
+            except tk.TclError:
+                pass
+            self._job = None
+
+    def _show(self) -> None:
+        self._job = None
+        text = self._text_fn()
+        if not text or self._tip:
+            return
+        x = self._w.winfo_rootx()
+        y = self._w.winfo_rooty() + self._w.winfo_height() + 4
+        self._tip = tip = tk.Toplevel(self._w)
+        tip.wm_overrideredirect(True)
+        tip.wm_geometry(f"+{x}+{y}")
+        tk.Label(tip, text=text, justify="left", bg=C["panel"], fg=C["text"],
+                 font=F["small"], relief="solid", bd=1, padx=8, pady=5,
+                 wraplength=460).pack()
+
+    def _hide(self, _e=None) -> None:
+        self._cancel()
+        if self._tip:
+            self._tip.destroy()
+            self._tip = None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -178,6 +230,16 @@ class DefTabMixin:
             "<<ComboboxSelected>>", lambda _: self._def_show_hint(),
         )
 
+        # « + » : page de téléchargement des dictionnaires monolingues
+        self._def_get_btn = ttk.Button(
+            lang_row, text="+", style="Ghost.TButton",
+            width=3, command=self._def_open_dic_page,
+        )
+        self._def_get_btn.pack(side="left", padx=(6, 0))
+        _Tooltip(self._def_get_btn,
+                 lambda: self._t.get("def_get_dics_tip", "{url}").format(
+                     url=DIC_RELEASES_URL))
+
         self._def_refresh_btn = ttk.Button(
             lang_row, text="", style="Ghost.TButton",
             width=3, command=self._def_refresh_dics,
@@ -270,6 +332,18 @@ class DefTabMixin:
     @staticmethod
     def _dic_opts(codes: list[str]) -> list[str]:
         return [f"{LANG_NAMES.get(c, c)}  [{c}-{c}.db]" for c in codes]
+
+    def _def_open_dic_page(self) -> None:
+        """Ouvre la page des dictionnaires ; crée build/dic/ pour que
+        l'utilisateur sache où déposer le .db téléchargé."""
+        try:
+            os.makedirs(DIC_DIR, exist_ok=True)
+        except OSError:
+            pass
+        try:
+            webbrowser.open(DIC_RELEASES_URL)
+        except Exception:
+            pass
 
     def _def_refresh_dics(self) -> None:
         dics = available_dics()

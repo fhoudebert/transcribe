@@ -116,6 +116,16 @@ if [ "${#AUDIO_LANGS[@]}" -ge 2 ] || [ "${#SUBS_LANGS[@]}" -ge 1 ]; then
     EXTRA+=(--force-overwrites)
 fi
 
+# ffmpeg de la clé (fusion vidéo + audio, miniature, sous-titres SRT) :
+# sans --ffmpeg-location, yt-dlp ne cherche que dans le PATH du système.
+FFMPEG_DIR="$SCRIPT_DIR/build/ffmpeg/bin"
+FFLOC=()
+if [ -x "$FFMPEG_DIR/ffmpeg" ]; then
+    FFLOC=(--ffmpeg-location "$FFMPEG_DIR")
+else
+    echo "[AVERTISSEMENT] ffmpeg absent de la clé ($FFMPEG_DIR) : celui du système sera cherché"
+fi
+
 XATTR_FLAG=()
 _xt="$OUTDIR/.xattr_test.$$"
 if command -v setfattr >/dev/null 2>&1 && : > "$_xt" 2>/dev/null \
@@ -136,6 +146,7 @@ CMD=( "$YTDLP" \
     --restrict-filenames \
     --embed-chapters \
     ${XATTR_FLAG[@]+"${XATTR_FLAG[@]}"} \
+    ${FFLOC[@]+"${FFLOC[@]}"} \
     --newline \
     --progress \
     --print-to-file "after_move:%(filepath)s" "$OUTFILE_TMP" \

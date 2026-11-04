@@ -415,10 +415,7 @@ class DownloadWindow(tk.Toplevel):
                                    t("url_err_empty"), parent=self)
             return
         ytdlp = self._ytdlp_bin()
-        if not os.path.isfile(ytdlp):
-            messagebox.showerror(t("url_err_title"),
-                                 t("url_err_ytdlp", path=ytdlp),
-                                 parent=self)
+        if not self._parent._tool_ok("yt-dlp", ytdlp, parent=self):
             return
         self._reset_opts()
         self._probing = True
@@ -583,10 +580,9 @@ class DownloadWindow(tk.Toplevel):
 
         # Vérifier yt-dlp
         ytdlp = self._ytdlp_bin()
-        if not os.path.isfile(ytdlp):
-            messagebox.showerror(t("url_err_title"),
-                                 t("url_err_ytdlp", path=ytdlp),
-                                 parent=self)
+        # ffmpeg : fusion vidéo + audio, miniature, sous-titres SRT
+        if not (self._parent._tool_ok("yt-dlp", ytdlp, parent=self)
+                and self._parent._tool_ok("ffmpeg", parent=self)):
             return
 
         # Sous-titres cochés mais aucune langue retenue (un clic sur la

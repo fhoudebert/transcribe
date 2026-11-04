@@ -84,9 +84,16 @@ set "FORCE_FLAG="
 if %A_COUNT% GEQ 2 set "FORCE_FLAG=--force-overwrites"
 if defined TRANSCRIBE_DL_SUBS set "FORCE_FLAG=--force-overwrites"
 
+rem ffmpeg de la cle (fusion video + audio, miniature, sous-titres SRT) :
+rem sans --ffmpeg-location, yt-dlp ne cherche que dans le PATH du systeme.
+set "FFMPEG_DIR=%SCRIPT_DIR%build\ffmpeg\bin"
+set "FFLOC="
+if exist "%FFMPEG_DIR%\ffmpeg.exe" set FFLOC=--ffmpeg-location "%FFMPEG_DIR%"
+if not defined FFLOC echo [AVERTISSEMENT] ffmpeg absent de la cle (%FFMPEG_DIR%) : celui du systeme sera cherche
+
 rem Commande reellement lancee (affichee dans le journal de l'IHM)
 echo Commande :
-echo   "%YTDLP%" -f "%FMT%" -S "vcodec:h264,lang,quality,res,fps,hdr:12,acodec:aac" --merge-output-format mp4 --remux-video mp4 --restrict-filenames %EXTRA_AUDIO% %SUBS_FLAGS% --sub-langs "%SUBLANGS%" %AUTOSUBS_FLAG% %FORCE_FLAG% --embed-thumbnail --embed-chapters -P "%OUTDIR%" "%URL%"
+echo   "%YTDLP%" -f "%FMT%" -S "vcodec:h264,lang,quality,res,fps,hdr:12,acodec:aac" --merge-output-format mp4 --remux-video mp4 --restrict-filenames %EXTRA_AUDIO% %SUBS_FLAGS% --sub-langs "%SUBLANGS%" %AUTOSUBS_FLAG% %FORCE_FLAG% --embed-thumbnail --embed-chapters %FFLOC% -P "%OUTDIR%" "%URL%"
 echo.
 
 "%YTDLP%" ^
@@ -102,6 +109,7 @@ echo.
     %FORCE_FLAG% ^
     --embed-thumbnail ^
     --embed-chapters ^
+    %FFLOC% ^
     --newline ^
     --progress ^
     -o "%%(title).80s [%%(id)s].%%(ext)s" ^

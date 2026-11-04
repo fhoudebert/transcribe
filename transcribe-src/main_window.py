@@ -34,6 +34,7 @@ from app_styles import (
 from recorder_window import RecorderWindow
 from dialog_windows  import ChoiceDialog, DownloadWindow
 from about_window    import AboutWindow
+import tool_check
 from i18n import t, available_locales, set_locale, get_locale
 
 
@@ -159,6 +160,24 @@ class Transcribe(tk.Tk):
     def _ffprobe(self) -> str:
         ext = ".exe" if IS_WINDOWS else ""
         return os.path.join(self.root_dir, "build", "ffmpeg", "bin", f"ffprobe{ext}")
+
+    def _tool_ok(self, name: str, path: str | None = None,
+                 parent=None) -> bool:
+        """
+        Vérifie que ffmpeg / ffprobe / yt-dlp est réellement utilisable
+        (présent, exécutable, du bon système, démarre) : sinon message
+        explicite (cause + remède, cf. tool_check) dans une boîte et au
+        journal, et False.
+        """
+        if path is None:
+            path = self._ffprobe() if name == "ffprobe" else self._ffmpeg()
+        err = tool_check.check(name, path)
+        if err is None:
+            return True
+        title = t("tool_title", name=name)
+        self._log_line(f"\n✘  {title}\n{err}")
+        messagebox.showerror(title, err, parent=parent or self)
+        return False
 
     @staticmethod
     def _python_exe() -> str:
@@ -934,11 +953,9 @@ class Transcribe(tk.Tk):
         if not video:
             return
 
-        ffmpeg = self._ffmpeg()
-        if not os.path.isfile(ffmpeg):
-            messagebox.showerror(t("err_file_not_found"),
-                                 ffmpeg, parent=self)
+        if not self._tool_ok("ffmpeg"):
             return
+        ffmpeg = self._ffmpeg()
 
         src_ext  = os.path.splitext(video)[1].lower()
         base     = os.path.splitext(video)[0]
@@ -1005,9 +1022,7 @@ class Transcribe(tk.Tk):
         if not video: return
         ffprobe = self._ffprobe()
         ffmpeg  = self._ffmpeg()
-        if not os.path.isfile(ffprobe):
-            messagebox.showerror(t("err_file_not_found"),
-                                 t("analyze_missing", path=ffprobe))
+        if not (self._tool_ok("ffprobe") and self._tool_ok("ffmpeg")):
             return
         self._busy(t("status_analyzing"))
         self._log_line(f"\n🔍  {t('btn_analyze')}…")
@@ -1097,6 +1112,10 @@ class Transcribe(tk.Tk):
     def _run_whisper(self):
         video = self._validate()
         if not video: return
+        # ffmpeg convertit toujours la source en WAV 16 kHz (pré-traitement
+        # ici, ou soustitre.sh / .bat)
+        if not self._tool_ok("ffmpeg"):
+            return
         af = self._build_audio_filter()
 
         if af:
@@ -1289,6 +1308,8 @@ class Transcribe(tk.Tk):
     def _run_include(self):
         video = self._validate()
         if not video: return
+        if not self._tool_ok("ffmpeg"):
+            return
         base    = os.path.splitext(video)[0]
         lang    = self._get_lang()
         if lang == NO_TRANSLATION:   # transcription seule ⇒ langue source
