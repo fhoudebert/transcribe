@@ -9,7 +9,9 @@
 #    url          URL à télécharger
 #    format       vide|auto → détection par extension ; zip ; tar.gz|tgz ;
 #                 tar.bz2|tbz2 ; tar.xz|txz ; gz ; 7z|7zip ; no (pas d'extraction)
-#    os           linux | win | mac | all (défaut) : la ligne n'est traitée que
+#    os           linux | linux-x64 | linux-arm64 | win | mac | all (défaut) :
+#                 « linux » = toutes architectures Linux, linux-x64 / linux-arm64
+#                 = une seule (binaires). La ligne n'est traitée que
 #                 si l'OS courant correspond. Surcharge : CSV_OS=win ./download…
 #                 pour préparer une clé Windows depuis Linux (CSV_OS=all : tout).
 #    move         opérations post-extraction séparées par « ; » :
@@ -46,7 +48,12 @@ BASE_DIR="$(cd "$(dirname "$CSV")" && pwd)"
 CUR_OS="${CSV_OS:-}"
 if [ -z "$CUR_OS" ]; then
     case "$(uname -s)" in
-        Linux*)                 CUR_OS="linux" ;;
+        Linux*)
+            case "$(uname -m)" in
+                x86_64|amd64)   CUR_OS="linux-x64" ;;
+                aarch64|arm64)  CUR_OS="linux-arm64" ;;
+                *)              CUR_OS="linux-$(uname -m)" ;;
+            esac ;;
         Darwin*)                CUR_OS="mac"   ;;
         MINGW*|MSYS*|CYGWIN*)   CUR_OS="win"   ;;
         *)                      CUR_OS="linux" ;;
@@ -54,16 +61,29 @@ if [ -z "$CUR_OS" ]; then
 fi
 echo "OS cible : $CUR_OS"
 
-os_matches() {   # os_matches <tag>
+norm_tag() {     # norm_tag <étiquette> → forme canonique
     local t
     t="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
     case "$t" in
-        ""|all|any)        return 0 ;;
-        windows)           t="win" ;;
-        macos|darwin)      t="mac" ;;
+        windows)                      t="win" ;;
+        macos|darwin)                 t="mac" ;;
+        linux-x86_64|linux-amd64)     t="linux-x64" ;;
+        linux-aarch64)                t="linux-arm64" ;;
     esac
-    [ "$CUR_OS" = "all" ] && return 0
-    [ "$t" = "$CUR_OS" ]
+    printf '%s' "$t"
+}
+
+os_matches() {   # os_matches <tag>
+    local t cur
+    t="$(norm_tag "$1")"; cur="$(norm_tag "$CUR_OS")"
+    case "$t" in ""|all|any) return 0 ;; esac
+    [ "$cur" = "all" ] && return 0
+    # « linux » : toutes les architectures Linux (ligne ou surcharge CSV_OS)
+    if [ "$t" = linux ] || [ "$cur" = linux ]; then
+        case "$t" in linux*) case "$cur" in linux*) return 0 ;; esac ;; esac
+        return 1
+    fi
+    [ "$t" = "$cur" ]
 }
 
 apply_moves() {  # apply_moves <destdir> <movespec>

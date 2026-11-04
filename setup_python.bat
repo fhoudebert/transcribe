@@ -34,6 +34,12 @@ set "DEST=%ROOT%build\python\venv-windows"
 set "OLD_WIN=%ROOT%build\python\windows"
 set "PY=%DEST%\python.exe"
 set "ARGOS_DATA_DIR=%ROOT%build\argos-data\packages"
+rem curl.exe et tar.exe DE WINDOWS (System32) : un tar GNU place avant dans
+rem le PATH (Git, MSYS2...) lirait "C:\..." comme un hote distant.
+set "CURL=%SystemRoot%\System32\curl.exe"
+if not exist "%CURL%" set "CURL=curl.exe"
+set "TAR=%SystemRoot%\System32\tar.exe"
+if not exist "%TAR%" set "TAR=tar.exe"
 
 set "FORCE="
 set "NOLANG="
@@ -77,7 +83,7 @@ if not exist "%ROOT%build\python" mkdir "%ROOT%build\python"
 set "TMPD=%ROOT%build\python\tmp-%RANDOM%"
 mkdir "%TMPD%" || goto fail
 echo [1/4] Telechargement de Python %PY_VERSION%
-curl.exe -fL --retry 3 -o "%TMPD%\py.tar.gz" "%URL%" || goto fail_dl
+"%CURL%" -fL --retry 3 -o "%TMPD%\py.tar.gz" "%URL%" || goto fail_dl
 set "GOT="
 for /f "skip=1 delims=" %%H in ('certutil -hashfile "%TMPD%\py.tar.gz" SHA256') do if not defined GOT set "GOT=%%H"
 set "GOT=%GOT: =%"
@@ -86,7 +92,7 @@ if /i not "%GOT%"=="%SHA256%" (
     goto fail_dl
 )
 echo        extraction...
-tar.exe -xzf "%TMPD%\py.tar.gz" -C "%TMPD%" || goto fail_dl
+"%TAR%" -xzf "%TMPD%\py.tar.gz" -C "%TMPD%" || goto fail_dl
 move "%TMPD%\python" "%DEST%" >nul || goto fail_dl
 rmdir /s /q "%TMPD%" 2>nul
 rem la bibliotheque standard, tkinter et pip doivent etre complets

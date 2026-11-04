@@ -26,5 +26,9 @@ if exist "%SCRIPT_DIR%download-assistant.exe" (
 
 echo.
 echo Installation terminee avec succes.
-echo Lancez maintenant compiler_truchement.bat puis truchement.exe
+if exist "%SCRIPT_DIR%truchement.exe" (
+    echo Lancez maintenant truchement.exe ou transcribe.exe
+) else (
+    echo Lancez maintenant compiler.bat, puis truchement.exe ou transcribe.exe
+)
 endlocal

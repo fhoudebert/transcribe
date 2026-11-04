@@ -11,7 +11,8 @@
 #  Malgré son nom, build/python/venv n'est plus un venv : c'est un Python
 #  complet, qui ne dépend PAS du Python du système (un vrai venv retient le
 #  chemin absolu de son Python de base, et casse dès que la clé est montée
-#  ailleurs). La clé fonctionne sur n'importe quel Linux x86-64, sans python3
+#  ailleurs). La clé fonctionne sur n'importe quel Linux de son architecture
+#  (une clé par architecture : x86-64 ou arm64/aarch64), sans python3
 #  installé, et le dossier peut être déplacé ou copié tel quel.
 #  Un ancien venv créé avec le Python système est remplacé ; une installation
 #  faite dans build/python/linux (version précédente de ce script) est
@@ -49,8 +50,11 @@ case "$(uname -s)-$(uname -m)" in
     Linux-x86_64)
         TRIPLE=x86_64-unknown-linux-gnu
         SHA256="178d3d83b6e8e99285a65d3fce9c16b87952cc5efdb4d1a0e3ff3be18ff0fc9c" ;;
+    Linux-aarch64|Linux-arm64)
+        TRIPLE=aarch64-unknown-linux-gnu
+        SHA256="9467a99bacc7d90b64b02de7fa9ecfc99b72905e64e74f7ff6b460ad95cfed5a" ;;
     *)
-        echo "❌ système non pris en charge : $(uname -s) $(uname -m) (Linux x86-64)" >&2
+        echo "❌ système non pris en charge : $(uname -s) $(uname -m) (Linux x86-64 ou arm64)" >&2
         exit 1 ;;
 esac
 ASSET="cpython-${PY_VERSION}+${PBS_TAG}-${TRIPLE}-install_only_stripped.tar.gz"

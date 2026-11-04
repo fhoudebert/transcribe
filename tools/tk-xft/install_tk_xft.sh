@@ -3,10 +3,11 @@
 #  install_tk_xft.sh <dossier du Python portable> — Tk avec Xft (Linux)
 #
 #  Le Tk de python-build-standalone est compilé sans Xft : il ne voit que les
-#  polices bitmap X11 (« fixed », chasse fixe, sans emoji). libtcl9tk9.0.so,
-#  à côté de ce script, est le MÊME Tk (9.0.4) compilé avec Xft (recette :
-#  build_tk_xft.sh) : il remplace celui du Python portable, l'original étant
-#  gardé dans lib/tk-x11/. L'interface retrouve alors les polices du bureau.
+#  polices bitmap X11 (« fixed », chasse fixe, sans emoji). <arch>/libtcl9tk9.0.so,
+#  à côté de ce script (x86_64/ et aarch64/), est le MÊME Tk (9.0.4) compilé
+#  avec Xft (recette : build_tk_xft.sh) : il remplace celui du Python portable,
+#  l'original étant gardé dans lib/tk-x11/. L'interface retrouve alors les
+#  polices du bureau.
 #
 #  Appelé par setup_python.sh ET par compiler_transcribe.sh /
 #  compiler_truchement.sh : une simple recompilation suffit à l'installer.
@@ -18,8 +19,15 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEST="${1:?usage : install_tk_xft.sh <dossier du Python portable>}"
 PY="$DEST/bin/python3.12"
-TK_XFT="$HERE/libtcl9tk9.0.so"
-TK_XFT_SHA256="9b91fb6fbff4de3d0eea9ca97297ab50097916c69a524f3da8df0d081cceb536"
+# Une bibliothèque par architecture : celle de la machine qui installe.
+case "$(uname -m)" in
+    x86_64)        ARCH=x86_64
+                   TK_XFT_SHA256="9b91fb6fbff4de3d0eea9ca97297ab50097916c69a524f3da8df0d081cceb536" ;;
+    aarch64|arm64) ARCH=aarch64
+                   TK_XFT_SHA256="fbc9381ff28262724e8e7387a0ffd2b2541c0ae2bde3326a079d6631f586d0c7" ;;
+    *)             exit 0 ;;   # autre architecture : Tk d'origine conservé
+esac
+TK_XFT="$HERE/$ARCH/libtcl9tk9.0.so"
 TK_LIB="$DEST/lib/libtcl9tk9.0.so"
 TK_ORIG="$DEST/lib/tk-x11/libtcl9tk9.0.so"
 
@@ -31,7 +39,7 @@ tclver="$("$PY" -c 'import tkinter; print(tkinter.Tcl().eval("info patchlevel"))
 if [ "$tclver" != "9.0.4" ]; then
     echo "ℹ️  Tcl/Tk ${tclver:-?} : tools/tk-xft (9.0.4) ne correspond pas, polices X11 conservées"
 elif ! echo "$TK_XFT_SHA256  $TK_XFT" | sha256sum -c --quiet - 2>/dev/null; then
-    echo "⚠️  tools/tk-xft/libtcl9tk9.0.so : somme de contrôle incorrecte, ignoré"
+    echo "⚠️  tools/tk-xft/$ARCH/libtcl9tk9.0.so : somme de contrôle incorrecte, ignoré"
 elif ldd "$TK_XFT" 2>/dev/null | grep -q "not found"; then
     echo "⚠️  Tk avec Xft non installé, bibliothèques absentes de ce système :"
     ldd "$TK_XFT" | grep "not found" | sed 's/^/      /'
