@@ -22,6 +22,13 @@ le code 3221225781 (0xC0000135, « DLL introuvable »). Installation en un
 clic : <https://aka.ms/vc/17/release/vc_redist.x64.exe> (souvent déjà
 présent, apporté par d'autres logiciels).
 
+**Windows 11 sur ARM** (Snapdragon X, Surface Pro…) : l'archive x64
+fonctionne telle quelle, par l'émulation x64 intégrée à Windows 11 (Prism) —
+Python portable, transcribe.exe, truchement.exe, ffmpeg et whisper-cli
+compris ; prévoir des calculs plus lents qu'en natif. Pas de version ARM64
+native : ctranslate2, le moteur de traduction d'Argos, n'en publie pas.
+Windows 10 sur ARM n'émule pas le x64 : non pris en charge.
+
 ## 1. Setup — `setupPython_and_download.bat`
 
 Double-clic (ou depuis un terminal) à la racine de la clé :

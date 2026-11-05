@@ -33,6 +33,13 @@
 #    xattr -dr com.apple.quarantine <dossier>
 #  Intel : runner macos-15-intel (dernière image Intel de GitHub).
 #
+#  Windows ARM64 : pas de compilation native — ctranslate2 (moteur de
+#  traduction d'Argos) ne publie aucune roue win_arm64. Windows 11 ARM fait
+#  tourner l'archive x64 par émulation (Prism) ; le job windows-arm64 le
+#  vérifie sur le runner windows-11-arm : Python portable x64, dépendances,
+#  ffmpeg / whisper-cli / yt-dlp de downloads.csv, lancement des deux .exe.
+#  Il ne publie rien et ne bloque pas la release.
+#
 #  Déclenchement : à la main (onglet Actions → Run workflow), ou en poussant
 #  une étiquette v* ou linux-* (git tag v0.5 && git push origin v0.5) : les
 #  archives sont alors aussi publiées dans la release de cette étiquette.
@@ -244,6 +251,73 @@ jobs:
           name: windows-x64
           path: dist/*.zip
           if-no-files-found: error
+
+  windows-arm64:
+    name: Windows arm64 (archive x64 émulée)
+    needs: windows
+    runs-on: windows-11-arm
+    timeout-minutes: 120
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: windows-x64
+          path: dist
+
+      - name: Décompression de l'archive x64
+        shell: pwsh
+        run: |
+          Expand-Archive dist\transcribe-windows-x64.zip -DestinationPath cle
+          $os = Get-CimInstance Win32_OperatingSystem
+          Write-Host "$($os.Caption) $($os.Version) — processeur : $env:PROCESSOR_ARCHITECTURE"
+
+      - name: Python portable x64 (sans paquets de langues Argos)
+        shell: cmd
+        working-directory: cle
+        run: call setup_python.bat --no-lang || exit /b 1
+
+      - name: ffmpeg, whisper-cli et yt-dlp (lignes « win » de downloads.csv)
+        shell: pwsh
+        working-directory: cle
+        run: |
+          # lignes Windows seulement : pas de modèles Whisper ni de dictionnaires
+          Select-String -Path downloads.csv -Pattern ',win(,|$)' |
+            ForEach-Object Line | Set-Content -Encoding utf8 ci-downloads.csv
+          Get-Content ci-downloads.csv
+          .\build\python\venv-windows\python.exe -I download_from_csv.py ci-downloads.csv
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          .\build\python\venv-windows\python.exe -c "import platform, sys; print('Python', sys.version.split()[0], platform.machine())"
+          $failed = $false
+          foreach ($c in @(@('build\ffmpeg\bin\ffmpeg.exe', '-version'),
+                           @('build\whisper\whisper-cli.exe', '--help'),
+                           @('build\yt-dlp\yt-dlp.exe', '--version'))) {
+            & $c[0] $c[1] *> out.txt
+            $rc = $LASTEXITCODE
+            Write-Host "$($c[0]) : code $rc — $(Get-Content out.txt -TotalCount 1)"
+            # whisper-cli --help rend 0 ou 1 selon les versions
+            if ($rc -ne 0 -and -not ($c[0] -like '*whisper*' -and $rc -eq 1)) { $failed = $true }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Essai de lancement
+        shell: pwsh
+        working-directory: cle
+        run: |
+          $failed = $false
+          foreach ($app in 'transcribe', 'truchement') {
+            $p = Start-Process -FilePath ".\$app.exe" -PassThru
+            Start-Sleep -Seconds 45
+            $titles = @(Get-Process -Name $app -ErrorAction SilentlyContinue |
+                        ForEach-Object { $_.MainWindowTitle } | Where-Object { $_ })
+            if ($p.HasExited) {
+              Write-Host "::error::$app s'est arrêté (code $($p.ExitCode))"; $failed = $true
+            } elseif ($titles -match 'exception|error|erreur') {
+              Write-Host "::error::$app : fenêtre d'erreur « $($titles -join ' | ') »"; $failed = $true
+            } else {
+              Write-Host "$app : en marche, fenêtre(s) : $($titles -join ' | ')"
+            }
+            taskkill /PID $p.Id /T /F 2>&1 | Out-Null
+          }
+          if ($failed) { exit 1 }
 
   release:
     name: Release
