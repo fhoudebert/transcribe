@@ -2,6 +2,8 @@
 
 Installation details, platforms, building and internals. For an overview, see [README.md](README.md) / [LisezMoi.md](LisezMoi.md). Windows specifics: [README.windows.md](README.windows.md).
 
+🇫🇷 [Version française : developpement.fr.md](developpement.fr.md)
+
 - [Manual installation](#manual-installation)
 - [Translating a book with a local LLM](#translating-a-book-with-a-local-llm)
 - [Linux on x86-64 or arm64](#linux-on-x86-64-or-arm64)
@@ -11,7 +13,6 @@ Installation details, platforms, building and internals. For an overview, see [R
 - [Command-line scripts](#command-line-scripts)
 - [Troubleshooting](#troubleshooting)
 - [Python dependencies](#python-dependencies)
-- [Roadmap](#roadmap)
 
 ---
 
@@ -179,11 +180,3 @@ Typical Transcribe pipeline:
 - **Truchement**: argostranslate, argostranslate-files, bs4/lxml, pillow (optional); future: pyglossary, PyMuPDF.
 
 See [`requirements.txt`](requirements.txt) for pinned versions.
-
-## Roadmap
-
-- ✅ Linux support (x86-64, arm64)
-- 🚧 Windows build (single stick usable on both OSes)
-- 🚧 In-app management of translation packages and dictionaries
-- 💡 Automatic source-language detection
-- 💡 More dictionaries

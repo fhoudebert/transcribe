@@ -49,9 +49,9 @@ Tout — Python portable, modèles, paquets de traduction, dictionnaires — se 
    - ou avec `./setupPython_and_download.sh` (Linux, macOS) / `setupPython_and_download.bat` (Windows).
 3. Lancez `transcribe` ou `truchement`.
 
-Pour traduire des livres avec un LLM, démarrez d'abord un serveur llama.cpp et indiquez son adresse dans Truchement (bouton ⚙) — voir [developpement.md](developpement.md#translating-a-book-with-a-local-llm).
+Pour traduire des livres avec un LLM, démarrez d'abord un serveur llama.cpp et indiquez son adresse dans Truchement (bouton ⚙) — voir [developpement.fr.md](developpement.fr.md#traduire-un-livre-avec-un-llm-local).
 
-Installation détaillée, plateformes (Linux x86-64/arm64, Windows, macOS), compilation, arborescence, scripts en ligne de commande et dépannage : **[developpement.md](developpement.md)** · Particularités Windows : [README.windows.md](README.windows.md).
+Installation détaillée, plateformes (Linux x86-64/arm64, Windows, macOS), compilation, arborescence, scripts en ligne de commande et dépannage : **[developpement.fr.md](developpement.fr.md)** · Particularités Windows : [README.windows.md](README.windows.md).
 
 ## Construit avec
 
